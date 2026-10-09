@@ -1,70 +1,54 @@
 # FF Tinder
 
-A project for **[briefly describe what FF Tinder does]**.
+A browser-based fantasy football trade finder. You answer quick "who would you rather own?"
+matchups. The app learns how your valuations differ from the market and suggests 1-for-1 trades
+you'd like that are still fair by consensus value.
 
-> Starter README: replace the bracketed notes with project-specific details as the application takes shape.
+Phase 1 is single-player: there are no accounts, no league sync and no backend. Everything you enter stays in your browser.
 
-## Overview
+## How it works
 
-[Describe the problem this project solves and who it is for.]
+- **Market value** comes from [FantasyCalc](https://fantasycalc.com) redraft trade values, which
+  are fetched directly from the browser. They're normalized to a 0–100 baseline.
+- **Personal value** comes from a Bradley–Terry model that uses the baseline as its prior. Each
+  answer updates a per-player offset and a per-position offset, and each offset carries its own
+  uncertainty. Your answers make up at most 50% of a player's value. Their share grows with the
+  number of *informative* answers, so easy calls count for very little.
+- **Matchups** are picked by active learning. The app favors close calls, players it knows little
+  about, players from different positions, and players near your roster's value. It also re-tests
+  surprising answers.
+- **Trade ideas** are 1-for-1 swaps that improve your starting lineup by your own values. You may
+  overpay by up to 12% of market value, but you may never receive more than 5% extra.
 
-## Features
+The domain logic lives in [src/domain/](src/domain/). It's plain TypeScript with no Angular, so it can
+later run on a server for multi-manager trade matching.
 
-- [Feature or capability]
-- [Feature or capability]
-- [Feature or capability]
+## Development
 
-## Tech stack
-
-- **Frontend:** [framework or library]
-- **Backend:** [language, framework, or service]
-- **Database:** [database or service]
-
-## Getting started
-
-### Prerequisites
-
-- [Required runtime or tool, including version]
-- [Any required account or service]
-
-### Installation
+Requires Node 22.22.3+ or 24.15+ (the Angular 22 minimums).
 
 ```sh
-git clone https://github.com/vetter99/ff-tinder.git
-cd ff-tinder
-# Install dependencies using your project's package manager
+npm install
+npm start          # http://localhost:4200
+npm test           # unit tests, including simulated-user learning tests
+npm run build      # static site in dist/ff-tinder/browser
+npm run snapshot   # refresh public/data/snapshot.json, the offline fallback
 ```
 
-### Configuration
+## Data and fallbacks
 
-Copy the example environment file, if provided, and fill in the required values:
+Player values load from the first source that works, in this order:
 
-```sh
-cp .env.example .env
-```
+1. A cache in localStorage that's less than 6 hours old.
+2. Live data from FantasyCalc.
+3. The same cache, however old it is.
+4. The bundled `public/data/snapshot.json`, which is always 12-team PPR 1QB data. The header shows
+   a notice when this doesn't match your league settings.
 
-Do not commit secrets or credentials.
-
-### Run locally
-
-```sh
-# Replace with the project's start command
-```
-
-## Tests
-
-```sh
-# Replace with the project's test command
-```
+Headshots load from Sleeper's CDN, with initials shown when an image is missing. FantasyCalc has no
+published API terms, so check with them before any commercial use.
 
 ## Deployment
 
-[Document the deployment target and release steps.]
-
-## Contributing
-
-Contributions are welcome. Open an issue to discuss a significant change before submitting a pull request.
-
-## License
-
-[Add the chosen license and link to its file.]
+The build output is fully static, so it can be served from Cloudflare Pages, Netlify, Vercel or
+GitHub Pages without a server.

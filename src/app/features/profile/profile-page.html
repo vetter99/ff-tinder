@@ -1,0 +1,80 @@
+<h1 class="text-xl font-semibold">Preference profile</h1>
+<p class="mt-1 text-sm text-zinc-400">What your answers say about how you value players.</p>
+
+<dl class="mt-6 grid grid-cols-3 gap-3">
+  <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+    <dt class="text-xs text-zinc-500">Comparisons</dt>
+    <dd class="mt-1 text-2xl font-semibold tabular-nums">{{ stats().comparisons }}</dd>
+  </div>
+  <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+    <dt class="text-xs text-zinc-500">Informative</dt>
+    <dd class="mt-1 text-2xl font-semibold tabular-nums">{{ stats().informative.toFixed(1) }}</dd>
+  </div>
+  <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+    <dt class="text-xs text-zinc-500">Personalization</dt>
+    <dd class="mt-1 text-2xl font-semibold tabular-nums">{{ stats().personalization }}%</dd>
+  </div>
+</dl>
+<p class="mt-2 text-xs text-zinc-500">
+  Your values are currently {{ 100 - stats().personalShare }}% consensus and
+  {{ stats().personalShare }}% your own answers (personal share caps at 50%). Easy answers count less
+  than close calls.
+</p>
+
+<section class="mt-8" aria-labelledby="leans-heading">
+  <h2 id="leans-heading" class="text-sm font-medium text-zinc-300">Position leans</h2>
+  <ul class="mt-3 space-y-2">
+    @for (l of leans(); track l.position) {
+      <li class="flex items-center gap-3">
+        <span class="w-8"><app-position-badge [position]="l.position" /></span>
+        <span class="relative h-2 flex-1 rounded-full bg-zinc-800" aria-hidden="true">
+          <span class="absolute inset-y-0 left-1/2 w-px bg-zinc-600"></span>
+          <span
+            class="absolute inset-y-0 rounded-full"
+            [class]="l.value >= 0 ? 'left-1/2 bg-emerald-500' : 'right-1/2 bg-rose-500'"
+            [style.width.%]="l.width"
+          ></span>
+        </span>
+        <span class="w-12 text-right text-xs text-zinc-400 tabular-nums">{{ signed(l.value) }}</span>
+      </li>
+    }
+  </ul>
+</section>
+
+<section class="mt-8" aria-labelledby="higher-heading">
+  <h2 id="higher-heading" class="text-sm font-medium text-zinc-300">You're higher than consensus on</h2>
+  <app-gap-list class="mt-2" [gaps]="valuation.higherThanConsensus()" empty="Nobody yet." />
+</section>
+
+<section class="mt-8" aria-labelledby="lower-heading">
+  <h2 id="lower-heading" class="text-sm font-medium text-zinc-300">You're lower than consensus on</h2>
+  <app-gap-list class="mt-2" [gaps]="valuation.lowerThanConsensus()" empty="Nobody yet." />
+</section>
+
+<section class="mt-10 border-t border-zinc-800 pt-6" aria-labelledby="data-heading">
+  <h2 id="data-heading" class="text-sm font-medium text-zinc-300">Your data</h2>
+  <p class="mt-1 text-xs text-zinc-500">
+    Market values updated {{ dataLabel() }}. Your roster and answers live only in this browser.
+  </p>
+  <div class="mt-3 flex flex-wrap gap-2 text-sm">
+    <button type="button" class="rounded-md border border-zinc-800 px-3 py-1.5 hover:bg-zinc-900" (click)="refresh()">
+      Refresh values
+    </button>
+    <button type="button" class="rounded-md border border-zinc-800 px-3 py-1.5 hover:bg-zinc-900" (click)="exportData()">
+      Export
+    </button>
+    <label class="cursor-pointer rounded-md border border-zinc-800 px-3 py-1.5 hover:bg-zinc-900 focus-within:outline-2 focus-within:outline-emerald-400">
+      Import
+      <input #file type="file" accept="application/json" class="sr-only" (change)="importData(file)" />
+    </label>
+    <button type="button" class="rounded-md border border-zinc-800 px-3 py-1.5 text-rose-300 hover:bg-zinc-900" (click)="clearComparisons()">
+      Clear comparisons
+    </button>
+    <button type="button" class="rounded-md border border-zinc-800 px-3 py-1.5 text-rose-300 hover:bg-zinc-900" (click)="resetAll()">
+      Reset everything
+    </button>
+  </div>
+  @if (message()) {
+    <p class="mt-2 text-xs text-zinc-400" role="status">{{ message() }}</p>
+  }
+</section>

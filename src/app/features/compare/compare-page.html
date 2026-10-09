@@ -1,0 +1,83 @@
+<div class="flex items-baseline justify-between gap-4">
+  <h1 class="text-xl font-semibold">Who would you rather own?</h1>
+  <span class="text-xs whitespace-nowrap text-zinc-500">{{ count() }} answered</span>
+</div>
+
+<div class="mt-3" aria-live="polite">
+  @if (calibrating()) {
+    <div class="flex items-center gap-3 text-xs text-zinc-400">
+      <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
+        <div class="h-full bg-emerald-500 transition-all" [style.width.%]="(count() / calibrationTotal) * 100"></div>
+      </div>
+      Calibrating {{ count() }}/{{ calibrationTotal }}
+    </div>
+  } @else {
+    <p class="text-xs text-zinc-400">
+      Personalization {{ confidencePct() }}% ·
+      <a routerLink="/trades" class="text-emerald-400 hover:underline">See trade ideas →</a>
+    </p>
+  }
+</div>
+
+@if (!hasRoster()) {
+  <p class="mt-4 rounded-md bg-zinc-900 px-3 py-2 text-xs text-zinc-400">
+    Tip: <a routerLink="/roster" class="text-emerald-400 hover:underline">add your roster</a> so
+    matchups focus on players near your team's value.
+  </p>
+}
+
+@if (pair(); as p) {
+  <div
+    class="mt-6 grid touch-pan-y grid-cols-2 gap-3 select-none sm:gap-4"
+    (pointerdown)="onPointerDown($event)"
+    (pointermove)="onPointerMove($event)"
+    (pointerup)="onPointerUp()"
+    (pointercancel)="onPointerCancel()"
+    (pointerleave)="onPointerCancel()"
+  >
+    @for (player of p; track player.id; let i = $index) {
+      <button
+        type="button"
+        class="group flex flex-col items-center rounded-xl border bg-zinc-900 px-3 py-6 text-center transition hover:border-emerald-500/60 focus-visible:border-emerald-400 focus-visible:outline-none sm:py-8"
+        [class.border-emerald-400]="leaning($any(i))"
+        [class.border-zinc-800]="!leaning($any(i))"
+        [attr.aria-label]="'Pick ' + player.name + (i === 0 ? ' (left arrow)' : ' (right arrow)')"
+        (click)="pick($any(i))"
+      >
+        <app-player-avatar [player]="player" [size]="88" />
+        <span class="mt-4 text-base leading-tight font-semibold text-zinc-100 sm:text-lg">{{ player.name }}</span>
+        <span class="mt-2 flex items-center gap-1.5 text-xs text-zinc-400">
+          <app-position-badge [position]="player.position" />
+          {{ player.team ?? 'FA' }}
+          @if (player.age) {
+            · {{ wholeYears(player.age) }}
+          }
+        </span>
+      </button>
+    }
+  </div>
+
+  <div class="mt-4 flex items-center justify-center gap-2 text-sm">
+    <button
+      type="button"
+      class="rounded-md px-3 py-1.5 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100 disabled:opacity-40"
+      [disabled]="count() === 0"
+      (click)="undo()"
+    >
+      ↶ Undo
+    </button>
+    <button
+      type="button"
+      class="rounded-md px-3 py-1.5 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+      (click)="skip()"
+    >
+      Too close to call
+    </button>
+  </div>
+  <p class="mt-3 hidden text-center text-xs text-zinc-600 sm:block">
+    Keyboard: ← / → to pick, ↓ for too close, U to undo
+  </p>
+  <p class="mt-3 text-center text-xs text-zinc-600 sm:hidden">Tap or swipe toward a player</p>
+} @else {
+  <p class="mt-10 text-center text-sm text-zinc-500">No matchups available.</p>
+}
