@@ -1,4 +1,4 @@
-import { findMatches, LeagueMember, parseSharedValues, shareableValues, SharedValues } from './matches';
+import { findMatches, findThreeWayMatches, LeagueMember, parseSharedValues, shareableValues, SharedValue, SharedValues } from './matches';
 import { PersonalValue } from './preference';
 import { makePlayer } from './testing';
 
@@ -85,5 +85,61 @@ describe('shareableValues / parseSharedValues', () => {
     expect(parseSharedValues({ '1': [1, 2, 3] })).toBeNull();
     expect(parseSharedValues({ '1': [1e9, 2, 0] })).toBeNull();
     expect(parseSharedValues({ '1': [1, 2, 0], '2': [1, 2, 0] }, 1)).toBeNull();
+  });
+});
+
+describe('findThreeWayMatches', () => {
+  // Three WRs at similar prices: each team likes the next team's player more than consensus does.
+  const wr = (b: number): [number, 0] => [b, 0];
+  const base: Record<string, [number, 0]> = { a: wr(50), b: wr(51), c: wr(50) };
+  const team = (id: string, roster: string[], likes: string): LeagueMember => ({
+    franchiseId: id,
+    franchiseName: `Team ${id}`,
+    roster,
+    values: Object.fromEntries(
+      Object.entries(base).map(([pid, [b, qb]]) => [pid, [b, b + (pid === likes ? 4 : 0), qb]]),
+    ),
+  });
+
+  it('finds a loop where each team gets the player it likes more than consensus', () => {
+    // Me (A) owns a and likes c; B owns b and likes a; C owns c and likes b.
+    const me = team('A', ['a'], 'c');
+    const b = team('B', ['b'], 'a');
+    const c = team('C', ['c'], 'b');
+    const [m, ...rest] = findThreeWayMatches(me, [b, c]);
+    expect(rest).toEqual([]);
+    expect(m).toMatchObject({
+      send: 'a',
+      first: { franchiseId: 'B', sends: 'b' },
+      second: { franchiseId: 'C', sends: 'c' },
+      yourEdge: 4,
+      score: 4,
+    });
+    // No 2-team match exists here: nobody likes what a single partner owns in return.
+    expect(findMatches(me, [b, c])).toEqual([]);
+  });
+
+  it('needs all three managers to want their side', () => {
+    const me = team('A', ['a'], 'c');
+    const b = team('B', ['b'], 'a');
+    const indifferentC = team('C', ['c'], 'nobody');
+    expect(findThreeWayMatches(me, [b, indifferentC])).toEqual([]);
+  });
+
+  it('stays fast for a full league', () => {
+    const ids = Array.from({ length: 300 }, (_, i) => String(1000 + i));
+    const market = Object.fromEntries(ids.map((id, i) => [id, 80 - (i % 75)]));
+    const members: LeagueMember[] = Array.from({ length: 12 }, (_, t) => ({
+      franchiseId: `T${t}`,
+      franchiseName: `Team ${t}`,
+      roster: ids.slice(t * 25, t * 25 + 25),
+      values: Object.fromEntries(
+        ids.map((id, i) => [id, [market[id], market[id] + (((i * 31 + t * 17) % 9) - 4), 0] as SharedValue]),
+      ),
+    }));
+    const start = performance.now();
+    const found = findThreeWayMatches(members[0], members.slice(1));
+    expect(performance.now() - start).toBeLessThan(200);
+    expect(found.length).toBeGreaterThan(0);
   });
 });

@@ -150,6 +150,15 @@ Matches are ranked by the smaller of the two edges, so the best match is the one
 most. The list holds up to 10, with each incoming player at most twice and each of your players at
 most three times.
 
+**3-way matches:** the server also looks for loops of three teams: you send X to Team B, Team B
+sends Y to Team C, and Team C sends Z to you. Each manager must like what they receive more than
+what they give up by more than consensus does (an edge of at least 1), and each manager's swap must
+be fair by market, with QBs only for QBs. Loops are ranked by the smallest of the three edges, and
+up to 5 are shown, each player in at most two. They're built from each manager's acceptable swaps
+rather than every combination of three rosters, which takes a few milliseconds for a 12-team
+league. A 3-way card lists the three legs and can copy a message for the group chat; "I would
+never" applies to what you send and what you receive.
+
 **What's shared:** while your roster is linked to an MFL league, the app sends your market and
 personal value for each player (keyed by MFL player ID) to the server. Matching happens on the
 server, and each manager only receives their own matches, never anyone else's values. Teams that

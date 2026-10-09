@@ -1,5 +1,5 @@
 import { computed, effect, inject, Service, signal, untracked } from '@angular/core';
-import { shareableValues, SharedValues, TradeMatch } from '../../domain/matches';
+import { shareableValues, SharedValues, ThreeWayMatch, TradeMatch } from '../../domain/matches';
 import { ComparisonLog, teamKey } from '../../domain/team-sync';
 import { vetoKey } from '../../domain/trades';
 import { Player } from '../../domain/types';
@@ -16,11 +16,21 @@ export interface LeagueMatch extends Omit<TradeMatch, 'send' | 'receive'> {
   receive: Player;
 }
 
+/** A 3-way loop with players resolved: you → first → second → you. */
+export interface LeagueThreeWay {
+  send: Player;
+  first: { franchiseId: string; franchiseName: string; sends: Player };
+  second: { franchiseId: string; franchiseName: string; sends: Player };
+  yourEdge: number;
+  score: number;
+}
+
 interface SyncResult {
   log: ComparisonLog;
   teams: number;
   members: number;
   matches: TradeMatch[];
+  threeWay?: ThreeWayMatch[];
 }
 
 interface Team {
@@ -46,16 +56,28 @@ export class TeamSyncService {
 
   readonly teams = computed(() => this.result()?.teams ?? null);
   readonly members = computed(() => this.result()?.members ?? null);
+  private readonly byMfl = computed(
+    () => new Map(this.valuation.players().flatMap((p) => (p.ids.mfl ? [[p.ids.mfl, p] as const] : []))),
+  );
   readonly matches = computed<LeagueMatch[]>(() => {
-    const byMfl = new Map(
-      this.valuation.players().flatMap((p) => (p.ids.mfl ? [[p.ids.mfl, p] as const] : [])),
-    );
+    const byMfl = this.byMfl();
     const vetoed = this.valuation.vetoed();
     return (this.result()?.matches ?? []).flatMap((m) => {
       const send = byMfl.get(m.send);
       const receive = byMfl.get(m.receive);
       if (!send || !receive || vetoed.has(vetoKey(send.id, receive.id))) return [];
       return [{ ...m, send, receive }];
+    });
+  });
+  readonly threeWay = computed<LeagueThreeWay[]>(() => {
+    const byMfl = this.byMfl();
+    const vetoed = this.valuation.vetoed();
+    return (this.result()?.threeWay ?? []).flatMap((m) => {
+      const send = byMfl.get(m.send);
+      const middle = byMfl.get(m.first.sends);
+      const receive = byMfl.get(m.second.sends);
+      if (!send || !middle || !receive || vetoed.has(vetoKey(send.id, receive.id))) return [];
+      return [{ ...m, send, first: { ...m.first, sends: middle }, second: { ...m.second, sends: receive } }];
     });
   });
 
@@ -102,7 +124,7 @@ export class TeamSyncService {
       // Ignore a response that arrives after the user switched teams.
       if (key !== this.team) return;
       this.store.mergeTeamLog(key, res.log);
-      this.result.set({ teams: res.teams, members: res.members, matches: res.matches });
+      this.result.set({ teams: res.teams, members: res.members, matches: res.matches, threeWay: res.threeWay ?? [] });
       this.status.set('ready');
     } catch (e) {
       if (key !== this.team) return;

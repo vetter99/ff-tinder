@@ -9,12 +9,13 @@ import { ValuationService } from '../../core/valuation.service';
 import { signed } from '../../shared/format';
 import { PlayerLine } from '../../shared/player-line';
 import { NeverButton } from './never-button';
+import { ThreeWayCard } from './three-way-card';
 import { offerFromIdea, TradeCard } from './trade-card';
 import { TradeRoom } from './trade-room';
 
 @Component({
   selector: 'app-trades-page',
-  imports: [PlayerLine, RouterLink, NeverButton, TradeCard, TradeRoom],
+  imports: [PlayerLine, RouterLink, NeverButton, ThreeWayCard, TradeCard, TradeRoom],
   template: `
     <h1 class="text-xl font-semibold">Trade ideas</h1>
     <p class="mt-1 text-sm text-zinc-400">
@@ -104,7 +105,14 @@ import { TradeRoom } from './trade-room';
             </p>
           }
           @default {
-            <ul class="mt-2 space-y-4">
+            @if (teamSync.threeWay().length > 0) {
+              <ul class="mt-2 space-y-4" aria-label="3-way matches">
+                @for (m of teamSync.threeWay(); track m.send.id + m.first.sends.id + m.second.sends.id) {
+                  <li><app-three-way-card [match]="m" /></li>
+                }
+              </ul>
+            }
+            <ul class="mt-4 space-y-4">
               @for (m of teamSync.matches(); track m.franchiseId + m.send.id + m.receive.id) {
                 <li
                   class="relative overflow-hidden rounded-xl border border-amber-400/60 bg-amber-500/5 shadow-[0_0_24px_-8px] shadow-amber-400/40"
@@ -149,6 +157,7 @@ import { TradeRoom } from './trade-room';
                   </div>
                 </li>
               } @empty {
+                @if (teamSync.threeWay().length === 0) {
                 <li class="rounded-lg border border-dashed border-amber-400/30 px-4 py-4 text-sm text-zinc-400">
                   @if (teamSync.status() === 'syncing' && teamSync.members() === null) {
                     Checking your league for matches…
@@ -159,6 +168,7 @@ import { TradeRoom } from './trade-room';
                     No mutual trades yet. Matches update as you and your leaguemates keep comparing.
                   }
                 </li>
+                }
               }
             </ul>
           }

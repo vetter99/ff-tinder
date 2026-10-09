@@ -13,13 +13,14 @@
  * Each league team's answers and shared values live in D1 (binding DB):
  *
  *   POST /api/league/sync  { leagueId, franchiseId, values, log } → merges the team's answers with
- *                          the saved ones; returns them, how many teams take part, and the matches
+ *                          the saved ones; returns them, how many teams take part, and the
+ *                          team's 2-team and 3-way matches
  *
  * There are no accounts yet: whoever picks a team on any device gets that team's answers. Members
  * only ever receive their own matches, never another member's values.
  */
 
-import { findMatches, LeagueMember, parseSharedValues } from '../src/domain/matches';
+import { findMatches, findThreeWayMatches, LeagueMember, parseSharedValues } from '../src/domain/matches';
 import { mergeLogs, parseLog } from '../src/domain/team-sync';
 
 interface Env {
@@ -177,11 +178,13 @@ async function syncTeam(db: D1Database, ctx: Ctx, body: Record<string, unknown>)
     .filter((r) => now - r.updated_at < MEMBER_ACTIVE_DAYS * DAY_MS)
     .map((r) => member(r.franchise_id, parseSharedValues(JSON.parse(r.values_json)) ?? {}));
 
+  const me = member(franchiseId, values);
   return {
     log: merged,
     teams: lg.teams,
     members: others.length + 1,
-    matches: findMatches(member(franchiseId, values), others),
+    matches: findMatches(me, others),
+    threeWay: findThreeWayMatches(me, others),
   };
 }
 
@@ -292,7 +295,7 @@ async function league(id: string | null) {
     ppr: rulesBody ? receptionPoints(rulesBody) : null,
     franchises: franchises.map((f) => ({
       id: f.id,
-      name: f.name ?? `Team ${f.id}`,
+      name: f.name?.trim() || `Team ${f.id}`,
       playerIds: rosters.get(f.id) ?? [],
     })),
     contracts,

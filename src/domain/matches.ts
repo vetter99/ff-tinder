@@ -48,7 +48,25 @@ export const MATCH_RULES = {
   maxPerIncoming: 2,
   maxPerOutgoing: 3,
   limit: 10,
+  /** 3-way matches shown, and how often one player may appear in them. */
+  threeWayLimit: 5,
+  threeWayPerPlayer: 2,
 };
+
+/**
+ * A three-team loop: you send `send` to `first`, `first` sends `first.sends` to `second`, and
+ * `second` sends `second.sends` to you. Each manager prefers what they receive over what they give
+ * up by more than consensus does, and each manager's swap is fair by market.
+ */
+export interface ThreeWayMatch {
+  send: string;
+  first: { franchiseId: string; franchiseName: string; sends: string };
+  second: { franchiseId: string; franchiseName: string; sends: string };
+  /** Your edge on what you receive (`second.sends`) over what you send. */
+  yourEdge: number;
+  /** The smallest of the three managers' edges. */
+  score: number;
+}
 
 /** Values to share with the league, keyed by MFL id and rounded to keep the upload small. */
 export function shareableValues(
@@ -113,6 +131,74 @@ export function findMatches(
     if (picked.length >= rules.limit) break;
   }
   return picked;
+}
+
+/**
+ * Every 3-way loop that includes `me`, strongest first. Built from each manager's acceptable swaps
+ * so it never tries every combination of three rosters.
+ */
+export function findThreeWayMatches(
+  me: LeagueMember,
+  others: readonly LeagueMember[],
+  rules = MATCH_RULES,
+): ThreeWayMatch[] {
+  const teams = others.filter((t) => t.franchiseId !== me.franchiseId);
+  const all: ThreeWayMatch[] = [];
+  for (const x of me.roster) {
+    // Who would take X: team B giving up Y.
+    const takers = teams.flatMap((b) =>
+      b.roster.flatMap((y) => {
+        const edge = accepts(b.values, y, x, rules);
+        return edge === null ? [] : [{ team: b, player: y, edge }];
+      }),
+    );
+    if (takers.length === 0) continue;
+    // What you'd take for X: team C giving up Z.
+    const offers = teams.flatMap((c) =>
+      c.roster.flatMap((z) => {
+        const edge = accepts(me.values, x, z, rules);
+        return edge === null ? [] : [{ team: c, player: z, edge }];
+      }),
+    );
+    for (const b of takers) {
+      for (const c of offers) {
+        if (c.team.franchiseId === b.team.franchiseId) continue; // that's a 2-team trade
+        // C gives up Z and receives Y.
+        const cEdge = accepts(c.team.values, c.player, b.player, rules);
+        if (cEdge === null) continue;
+        all.push({
+          send: x,
+          first: { franchiseId: b.team.franchiseId, franchiseName: b.team.franchiseName, sends: b.player },
+          second: { franchiseId: c.team.franchiseId, franchiseName: c.team.franchiseName, sends: c.player },
+          yourEdge: c.edge,
+          score: Math.min(b.edge, c.edge, cEdge),
+        });
+      }
+    }
+  }
+  all.sort((a, b) => b.score - a.score);
+
+  const uses = new Map<string, number>();
+  const picked: ThreeWayMatch[] = [];
+  for (const m of all) {
+    const players = [m.send, m.first.sends, m.second.sends];
+    if (players.some((p) => (uses.get(p) ?? 0) >= rules.threeWayPerPlayer)) continue;
+    for (const p of players) uses.set(p, (uses.get(p) ?? 0) + 1);
+    picked.push(m);
+    if (picked.length >= rules.threeWayLimit) break;
+  }
+  return picked;
+}
+
+/**
+ * A manager's edge for giving up `out` to get `incoming` (by their own values and market), or null
+ * if they wouldn't: unknown player, QB for non-QB, unfair by market, or edge below the minimum.
+ */
+function accepts(values: SharedValues, out: string, incoming: string, rules: typeof MATCH_RULES): number | null {
+  const [o, i] = [values[out], values[incoming]];
+  if (!o || !i || o[2] !== i[2] || !fair(o[0], i[0], rules)) return null;
+  const edge = i[1] - i[0] - (o[1] - o[0]);
+  return edge >= rules.minEdge ? edge : null;
 }
 
 function evaluate(
