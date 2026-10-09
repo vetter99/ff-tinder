@@ -1,4 +1,4 @@
-<div class="flex h-[calc(100dvh-12rem)] min-h-120 flex-col sm:h-auto sm:min-h-0">
+<div class="flex h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] min-h-96 flex-col sm:h-auto sm:min-h-0">
   <!-- Status: unlock progress, then level; streak and daily goal -->
   <div class="flex items-center gap-3">
     <div class="min-w-0 flex-1">
@@ -65,7 +65,7 @@
           role="button"
           tabindex="0"
           data-card
-          class="relative flex min-h-0 cursor-pointer touch-none flex-col items-center justify-center overflow-hidden rounded-3xl border-2 px-4 text-center select-none focus-visible:border-emerald-400 focus-visible:outline-none"
+          class="card-fit relative flex min-h-0 cursor-pointer touch-none flex-col items-center justify-center overflow-hidden rounded-3xl border-2 px-4 text-center select-none focus-visible:border-emerald-400 focus-visible:outline-none"
           [class.card-in-left]="i === 0"
           [class.card-in-right]="i === 1"
           [class.card-move]="state !== 'dragging' && state !== 'armed'"
@@ -126,9 +126,10 @@
               i
             </button>
           }
-          <span class="pointer-events-none flex max-w-full flex-col items-center sm:gap-1">
+          <span class="card-body pointer-events-none flex max-w-full flex-col items-center sm:gap-1">
             <app-player-avatar [player]="player" [size]="88" />
-            <span class="mt-2 text-2xl leading-tight font-bold text-white sm:mt-4 sm:text-3xl">{{
+            <span class="card-text flex min-w-0 flex-col items-center">
+            <span class="card-name mt-2 text-2xl leading-tight font-bold text-white sm:mt-4 sm:text-3xl">{{
               player.name
             }}</span>
             <span class="mt-2 flex items-center gap-2 text-sm text-zinc-300">
@@ -143,6 +144,7 @@
               [state]="playerInfo.state(player.id)"
               [ppr]="ppr()"
             />
+            </span>
           </span>
         </div>
       }

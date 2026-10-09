@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { supportedPpr } from '../../../domain/format';
 import { matchMflRoster } from '../../../domain/league-import';
 import { LeagueSettings, Player } from '../../../domain/types';
@@ -28,6 +29,7 @@ interface FranchiseOption {
 })
 export class MflImport {
   private readonly mfl = inject(MflService);
+  private readonly router = inject(Router);
   protected readonly store = inject(StoreService);
   private readonly valuation = inject(ValuationService);
   private readonly teamSync = inject(TeamSyncService);
@@ -147,6 +149,8 @@ export class MflImport {
       this.formatFrom(league),
     );
     this.cancel();
+    // The roster is ready: straight to comparing.
+    void this.router.navigateByUrl('/compare');
   }
 
   /** Re-imports the linked team's current roster. */

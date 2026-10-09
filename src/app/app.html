@@ -41,7 +41,7 @@
   </div>
 </header>
 
-<main class="mx-auto max-w-3xl px-4 pt-6 pb-28 sm:pb-12">
+<main class="mx-auto max-w-3xl px-4 pt-6 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-12">
   @switch (rankings.status()) {
     @case ('loading') {
       @if (rankings.players().length === 0) {
