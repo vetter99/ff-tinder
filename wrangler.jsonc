@@ -1,0 +1,10 @@
+// Cloudflare Workers static-assets config. The build (`npm run build`) runs first; this serves its
+// output and falls back to index.html so app routes like /compare work on refresh.
+{
+  "name": "ff-tinder",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist/ff-tinder/browser",
+    "not_found_handling": "single-page-application",
+  },
+}

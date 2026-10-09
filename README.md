@@ -54,5 +54,14 @@ published API terms, so check with them before any commercial use.
 
 ## Deployment
 
-The build output is fully static, so it can be served from Cloudflare Pages, Netlify, Vercel or
-GitHub Pages without a server.
+Hosted on Cloudflare Workers (static assets) at
+https://ff-tinder.joshuajohnvetter.workers.dev. Every push to `main` redeploys it.
+
+| Setting | Value |
+|---|---|
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Node version | from `.node-version` (or set the `NODE_VERSION` environment variable) |
+
+[wrangler.jsonc](wrangler.jsonc) points the Worker at `dist/ff-tinder/browser` and serves
+`index.html` for app routes like `/compare`. No server code or secrets are involved.

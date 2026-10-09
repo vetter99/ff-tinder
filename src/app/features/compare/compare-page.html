@@ -1,83 +1,192 @@
-<div class="flex items-baseline justify-between gap-4">
-  <h1 class="text-xl font-semibold">Who would you rather own?</h1>
-  <span class="text-xs whitespace-nowrap text-zinc-500">{{ count() }} answered</span>
-</div>
-
-<div class="mt-3" aria-live="polite">
-  @if (calibrating()) {
-    <div class="flex items-center gap-3 text-xs text-zinc-400">
-      <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
-        <div class="h-full bg-emerald-500 transition-all" [style.width.%]="(count() / calibrationTotal) * 100"></div>
-      </div>
-      Calibrating {{ count() }}/{{ calibrationTotal }}
+<div class="flex h-[calc(100dvh-12rem)] min-h-120 flex-col sm:h-auto sm:min-h-0">
+  <!-- Status: unlock progress, then level; streak and daily goal -->
+  <div class="flex items-center gap-3">
+    <div class="min-w-0 flex-1">
+      @if (calibrating()) {
+        <p class="text-xs text-zinc-400">{{ toUnlock() }} more to unlock trade ideas</p>
+        <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
+          <div
+            class="h-full rounded-full bg-linear-to-r from-emerald-500 to-teal-300 transition-all duration-300"
+            [style.width.%]="(count() / calibrationTotal) * 100"
+          ></div>
+        </div>
+      } @else {
+        <p class="text-xs text-zinc-400">
+          <span class="font-semibold text-zinc-100">{{ level().title }}</span> · Lv
+          {{ level().level }} ·
+          <span class="text-zinc-500">{{ level().toNext }} to next</span>
+        </p>
+        <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
+          <div
+            class="h-full rounded-full bg-linear-to-r from-amber-400 to-emerald-400 transition-all duration-300"
+            [style.width.%]="level().progress * 100"
+          ></div>
+        </div>
+      }
     </div>
+    @if (streak() >= 3) {
+      @for (b of [streakBump()]; track b) {
+        <span
+          class="streak-bump rounded-full bg-orange-500/15 px-2.5 py-1 text-sm font-bold text-orange-300 tabular-nums"
+          [attr.aria-label]="streak() + ' answer streak'"
+          >🔥 {{ streak() }}</span
+        >
+      }
+    }
+    <span
+      class="rounded-full px-2.5 py-1 text-xs whitespace-nowrap tabular-nums"
+      [class]="today() >= dailyGoal ? 'bg-emerald-500/15 text-emerald-300' : 'bg-zinc-900 text-zinc-400'"
+      [attr.aria-label]="today() + ' of ' + dailyGoal + ' answered today'"
+      >{{ today() }}/{{ dailyGoal }}{{ today() >= dailyGoal ? ' ✓' : ' today' }}</span
+    >
+  </div>
+
+  <h1 class="mt-4 text-center text-lg font-semibold text-zinc-200 sm:text-xl">
+    Who would you rather own?
+  </h1>
+
+  @if (pair(); as p) {
+    <div
+      #arena
+      class="relative mt-3 grid min-h-0 flex-1 grid-rows-2 gap-3 sm:h-104 sm:flex-none sm:grid-cols-2 sm:grid-rows-1 sm:gap-6"
+    >
+      @for (player of p; track round() + '-' + player.id; let i = $index) {
+        @let side = $any(i);
+        @let state = cardState(side);
+        <button
+          type="button"
+          data-card
+          class="relative flex min-h-0 touch-none flex-col items-center justify-center overflow-hidden rounded-3xl border-2 px-4 text-center select-none focus-visible:outline-none"
+          [class.card-in-left]="i === 0"
+          [class.card-in-right]="i === 1"
+          [class.card-move]="state !== 'dragging' && state !== 'armed'"
+          [class.border-zinc-800]="state === 'idle' || state === 'dragging'"
+          [class.border-emerald-400]="state === 'armed' || state === 'chosen'"
+          [class.card-glow]="state === 'chosen'"
+          [class.opacity-0]="state === 'dropped'"
+          [class.opacity-30]="state === 'tie'"
+          [class.z-10]="state === 'dragging' || state === 'armed' || state === 'chosen'"
+          [style.transform]="cardTransform(side)"
+          [style.background]="cardBackground(player)"
+          [attr.aria-label]="'Pick ' + player.name"
+          (pointerdown)="onCardPointerDown($event, side)"
+          (pointermove)="onCardPointerMove($event)"
+          (pointerup)="onCardPointerUp(side)"
+          (pointercancel)="onCardPointerCancel()"
+          (keydown.enter)="pick(side)"
+          (keydown.space)="$event.preventDefault(); pick(side)"
+        >
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute -right-2 -bottom-6 text-[7rem] leading-none font-black tracking-tighter text-white/6 sm:text-[9rem]"
+            >{{ player.team ?? '' }}</span
+          >
+          @if (state === 'chosen') {
+            <span
+              class="stamp-pop absolute top-4 right-4 rounded-lg border-2 border-emerald-400 px-2 py-0.5 text-sm font-black tracking-widest text-emerald-300"
+              aria-hidden="true"
+              >PICK ✓</span
+            >
+          }
+          @if (state === 'armed') {
+            <span
+              class="absolute top-4 left-4 rounded-full bg-emerald-400 px-2 py-0.5 text-[11px] font-bold text-zinc-950"
+              aria-hidden="true"
+              >Let go to pick</span
+            >
+          }
+          <span class="pointer-events-none flex flex-col items-center sm:gap-1">
+            <app-player-avatar [player]="player" [size]="112" />
+            <span class="mt-3 text-2xl leading-tight font-bold text-white sm:mt-5 sm:text-3xl">{{
+              player.name
+            }}</span>
+            <span class="mt-2 flex items-center gap-2 text-sm text-zinc-300">
+              <app-position-badge [position]="player.position" />
+              {{ player.team ?? 'FA' }}
+              @if (player.age) {
+                · {{ wholeYears(player.age) }} yrs
+              }
+            </span>
+          </span>
+        </button>
+      }
+
+      <span
+        aria-hidden="true"
+        class="vs-badge pointer-events-none absolute top-1/2 left-1/2 z-20 flex size-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-zinc-700 bg-zinc-950 text-sm font-black text-zinc-300 italic"
+        [class.opacity-0]="leaving() !== null"
+        >VS</span
+      >
+
+      <div class="pointer-events-none absolute inset-0 z-30 overflow-visible" aria-hidden="true">
+        @for (pt of particles(); track pt.id) {
+          <span
+            class="particle absolute rounded-sm"
+            [style.left.px]="pt.x"
+            [style.top.px]="pt.y"
+            [style.width.px]="pt.size"
+            [style.height.px]="pt.size * 0.6"
+            [style.background]="pt.color"
+            [style.--dx]="pt.dx + 'px'"
+            [style.--dy]="pt.dy + 'px'"
+            [style.--r]="pt.rotate + 'deg'"
+          ></span>
+        }
+      </div>
+    </div>
+
+    <div class="mt-3 flex items-center justify-center gap-2 text-sm">
+      <button
+        type="button"
+        class="rounded-full px-4 py-2 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100 disabled:opacity-40"
+        [disabled]="count() === 0"
+        (click)="undo()"
+      >
+        ↶ Undo
+      </button>
+      <button
+        type="button"
+        class="rounded-full border border-zinc-800 px-4 py-2 text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100"
+        (click)="skip()"
+      >
+        Too close to call
+      </button>
+    </div>
+    <p class="mt-2 hidden text-center text-xs text-zinc-600 sm:block">
+      Click or fling a card · ← / → to pick · Space for too close · U to undo
+    </p>
   } @else {
-    <p class="text-xs text-zinc-400">
-      Personalization {{ confidencePct() }}% ·
-      <a routerLink="/trades" class="text-emerald-400 hover:underline">See trade ideas →</a>
+    <p class="mt-10 text-center text-sm text-zinc-500">No matchups available.</p>
+  }
+
+  @if (!hasRoster()) {
+    <p class="mt-3 text-center text-xs text-zinc-500">
+      <a routerLink="/roster" class="text-emerald-400 hover:underline">Add your roster</a> so
+      matchups focus on players near your team's value.
     </p>
   }
 </div>
 
-@if (!hasRoster()) {
-  <p class="mt-4 rounded-md bg-zinc-900 px-3 py-2 text-xs text-zinc-400">
-    Tip: <a routerLink="/roster" class="text-emerald-400 hover:underline">add your roster</a> so
-    matchups focus on players near your team's value.
-  </p>
-}
-
-@if (pair(); as p) {
-  <div
-    class="mt-6 grid touch-pan-y grid-cols-2 gap-3 select-none sm:gap-4"
-    (pointerdown)="onPointerDown($event)"
-    (pointermove)="onPointerMove($event)"
-    (pointerup)="onPointerUp()"
-    (pointercancel)="onPointerCancel()"
-    (pointerleave)="onPointerCancel()"
-  >
-    @for (player of p; track player.id; let i = $index) {
-      <button
-        type="button"
-        class="group flex flex-col items-center rounded-xl border bg-zinc-900 px-3 py-6 text-center transition hover:border-emerald-500/60 focus-visible:border-emerald-400 focus-visible:outline-none sm:py-8"
-        [class.border-emerald-400]="leaning($any(i))"
-        [class.border-zinc-800]="!leaning($any(i))"
-        [attr.aria-label]="'Pick ' + player.name + (i === 0 ? ' (left arrow)' : ' (right arrow)')"
-        (click)="pick($any(i))"
+<div
+  class="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center px-4"
+  role="status"
+  aria-live="polite"
+>
+  @if (toast(); as t) {
+    @if (t.link) {
+      <a
+        [routerLink]="t.link"
+        class="toast-in pointer-events-auto rounded-full border border-emerald-500/50 bg-zinc-900/95 px-5 py-2.5 text-sm font-medium text-zinc-100 shadow-2xl shadow-emerald-500/10"
+        [class.text-base]="t.big"
+        >{{ t.text }} <span class="text-emerald-400">→</span></a
       >
-        <app-player-avatar [player]="player" [size]="88" />
-        <span class="mt-4 text-base leading-tight font-semibold text-zinc-100 sm:text-lg">{{ player.name }}</span>
-        <span class="mt-2 flex items-center gap-1.5 text-xs text-zinc-400">
-          <app-position-badge [position]="player.position" />
-          {{ player.team ?? 'FA' }}
-          @if (player.age) {
-            · {{ wholeYears(player.age) }}
-          }
-        </span>
-      </button>
+    } @else {
+      <p
+        class="toast-in rounded-full border border-amber-400/50 bg-zinc-900/95 px-5 py-2.5 text-sm font-semibold text-zinc-100 shadow-2xl shadow-amber-400/10"
+        [class.text-base]="t.big"
+      >
+        {{ t.text }}
+      </p>
     }
-  </div>
-
-  <div class="mt-4 flex items-center justify-center gap-2 text-sm">
-    <button
-      type="button"
-      class="rounded-md px-3 py-1.5 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100 disabled:opacity-40"
-      [disabled]="count() === 0"
-      (click)="undo()"
-    >
-      ↶ Undo
-    </button>
-    <button
-      type="button"
-      class="rounded-md px-3 py-1.5 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
-      (click)="skip()"
-    >
-      Too close to call
-    </button>
-  </div>
-  <p class="mt-3 hidden text-center text-xs text-zinc-600 sm:block">
-    Keyboard: ← / → to pick, ↓ for too close, U to undo
-  </p>
-  <p class="mt-3 text-center text-xs text-zinc-600 sm:hidden">Tap or swipe toward a player</p>
-} @else {
-  <p class="mt-10 text-center text-sm text-zinc-500">No matchups available.</p>
-}
+  }
+</div>
