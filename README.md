@@ -81,10 +81,16 @@ of players gets a score, and the next matchup is drawn from the 10 best. Pairs s
 - the model knows little about either player;
 - the players play different positions (×3 during your first 10 answers, ×1.5 after);
 - either player is close in value to someone on your roster (×1.5);
+- one of the players **is** on your roster (another ×1.3, so about half of matchups include one of
+  your players, up from about a quarter, but not every one);
 - either player had a surprising earlier answer, which the next matchup re-tests;
 - **either player needs a refresh (×2 each)**, which makes the weekly check-in happen
   naturally;
 - the players are valuable: low-value pairs are down-weighted.
+
+**Winner stays** (an option on the comparison screen, off by default): the player you pick stays
+for the next matchup against a new challenger, chosen the same way from pairs that include them. A
+player who wins 5 in a row retires, and "too close to call" also starts a fresh matchup.
 
 Players far apart in value are never paired (no Ja'Marr Chase vs. a bench WR), and recently shown
 players and repeated pairs are down-weighted. QBs are only matched against QBs, with at least one

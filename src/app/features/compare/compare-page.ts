@@ -16,6 +16,10 @@ import { ValuationService } from '../../core/valuation.service';
 import { signed } from '../../shared/format';
 import { PlayerAvatar } from '../../shared/player-avatar';
 import { PositionBadge } from '../../shared/position-badge';
+import { PlayerInfoService } from '../../core/player-info.service';
+import { HelpTip } from '../../shared/help-tip';
+import { PlayerDetails } from '../../shared/player-details';
+import { PlayerSnapshot } from '../../shared/player-snapshot';
 import { teamColor } from '../../shared/team-colors';
 
 /** Drag distance (px) that counts as flinging a card, i.e. picking that player. */
@@ -35,6 +39,8 @@ const STREAK_WINDOW_MS = 10_000;
 const STREAK_MILESTONE = 10;
 const ANSWERS_PER_LEVEL = 20;
 const LEVEL_TITLES = ['Rookie', 'Scout', 'Analyst', 'Sharp', 'GM', 'Shark'];
+/** Winner stays: a player who wins this many in a row retires so matchups don't get stuck. */
+const MAX_REIGN = 5;
 const CONFETTI_COLORS = ['#34d399', '#fbbf24', '#38bdf8', '#f472b6', '#a78bfa'];
 
 interface Toast {
@@ -58,7 +64,7 @@ type CardState = 'idle' | 'dragging' | 'armed' | 'chosen' | 'dropped' | 'tie';
 
 @Component({
   selector: 'app-compare-page',
-  imports: [PlayerAvatar, PositionBadge, RouterLink],
+  imports: [HelpTip, PlayerAvatar, PlayerDetails, PlayerSnapshot, PositionBadge, RouterLink],
   templateUrl: './compare-page.html',
   host: { '(window:keydown)': 'onKey($event)', class: 'block' },
 })
@@ -76,6 +82,14 @@ export class ComparePage {
   protected readonly particles = signal<Particle[]>([]);
   protected readonly streak = signal(0);
   protected readonly streakBump = signal(0);
+  /** Winner stays: the reigning player, which slot they hold, and how many in a row they've won. */
+  protected readonly champion = signal<{ id: PlayerId; side: 0 | 1; wins: number } | null>(null);
+  protected readonly winnerStays = computed(() => this.store.options().winnerStays);
+  protected readonly playerInfo = inject(PlayerInfoService);
+  protected readonly ppr = computed(() => this.store.settings().ppr);
+  /** Player whose stats/news sheet is open. */
+  protected readonly detailsPlayer = signal<Player | null>(null);
+  private retired: { name: string; wins: number } | null = null;
 
   // Drag state for the card under the finger.
   protected readonly dragSide = signal<0 | 1 | null>(null);
@@ -96,6 +110,7 @@ export class ComparePage {
   protected readonly calibrating = computed(() => this.count() < CALIBRATION_COMPARISONS);
   protected readonly toUnlock = computed(() => CALIBRATION_COMPARISONS - this.count());
   protected readonly dailyGoal = DAILY_GOAL;
+  protected readonly maxReign = MAX_REIGN;
   protected readonly today = computed(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -116,6 +131,11 @@ export class ComparePage {
     effect(() => {
       if (!this.pair() && this.valuation.players().length > 0) untracked(() => this.next());
     });
+    // Fetch injuries, stats and news for whoever is on screen.
+    effect(() => {
+      const pair = this.pair();
+      if (pair) untracked(() => this.playerInfo.ensure(pair));
+    });
   }
 
   protected pick(side: 0 | 1): void {
@@ -123,6 +143,7 @@ export class ComparePage {
     if (!pair || this.leaving() !== null) return;
     const [winner, loser] = side === 0 ? pair : [pair[1], pair[0]];
     this.burst(side);
+    this.crown(winner, side);
     this.answer(side, () =>
       this.store.recordComparison(winner.id, loser.id, {
         baselines: [winner.market.baseline, loser.market.baseline],
@@ -130,9 +151,36 @@ export class ComparePage {
     );
   }
 
+  /** Winner stays: the pick keeps their slot, unless they've won enough in a row to retire. */
+  private crown(winner: Player, side: 0 | 1): void {
+    if (!this.winnerStays()) {
+      this.champion.set(null);
+      return;
+    }
+    const current = this.champion();
+    const wins = current?.id === winner.id ? current.wins + 1 : 1;
+    if (wins >= MAX_REIGN) {
+      this.retired = { name: winner.name, wins };
+      this.champion.set(null);
+    } else {
+      this.champion.set({ id: winner.id, side, wins });
+    }
+  }
+
+  protected toggleWinnerStays(on: boolean): void {
+    this.store.setOption('winnerStays', on);
+    if (!on) this.champion.set(null);
+  }
+
+  /** With winner stays, each player keeps their DOM node so only the challenger animates in. */
+  protected cardKey(player: Player, index: number): string {
+    return this.winnerStays() ? `${player.id}-${index}` : `${this.round()}-${player.id}`;
+  }
+
   protected skip(): void {
     const pair = this.pair();
     if (!pair || this.leaving() !== null) return;
+    this.champion.set(null);
     this.answer('tie', () =>
       this.store.recordComparison(pair[0].id, pair[1].id, {
         tie: true,
@@ -173,20 +221,29 @@ export class ComparePage {
     const a = last && byId.get(last.winner);
     const b = last && byId.get(last.loser);
     if (a && b) {
+      this.champion.set(null);
       this.pair.set([a, b]);
       this.round.update((r) => r + 1);
     }
   }
 
   private next(): void {
-    this.pair.set(
-      selectNextPair(
-        this.valuation.players(),
-        this.valuation.model(),
-        this.store.rosterIds(),
-        this.store.comparisons(),
-      ),
+    const champion = this.champion();
+    const pair = selectNextPair(
+      this.valuation.players(),
+      this.valuation.model(),
+      this.store.rosterIds(),
+      this.store.comparisons(),
+      Math.random,
+      { keep: champion?.id },
     );
+    if (champion && pair?.[0].id === champion.id) {
+      // The champion holds their slot; the challenger takes the other one.
+      this.pair.set(champion.side === 0 ? pair : [pair[1], pair[0]]);
+    } else {
+      this.champion.set(null);
+      this.pair.set(pair);
+    }
     this.round.update((r) => r + 1);
   }
 
@@ -203,6 +260,16 @@ export class ComparePage {
   private celebrate(targetsBefore: Set<PlayerId>, levelBefore: number): void {
     const n = this.count();
     const level = this.level();
+    if (this.retired) {
+      this.showToast({
+        text: `🏆 ${this.retired.name} won ${this.retired.wins} in a row`,
+        link: null,
+        big: true,
+      });
+      this.retired = null;
+      this.burst(null, 40);
+      return;
+    }
     if (level.level > levelBefore) {
       this.showToast({ text: `Level up! ${level.title} · Lv ${level.level}`, link: null, big: true });
       this.burst(null, 40);
@@ -279,8 +346,13 @@ export class ComparePage {
     setTimeout(() => this.particles.update((ps) => ps.filter((p) => !ids.has(p.id))), 900);
   }
 
+  protected openDetails(player: Player): void {
+    this.detailsPlayer.set(player);
+  }
+
   protected onKey(event: KeyboardEvent): void {
     if (event.target instanceof HTMLInputElement || event.metaKey || event.ctrlKey) return;
+    if (this.detailsPlayer()) return; // the details sheet handles its own keys
     if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') this.pick(0);
     else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') this.pick(1);
     else if (event.key === ' ' || event.key === 's') this.skip();

@@ -7,6 +7,7 @@ import {
   ModelOptions,
   PlayerId,
 } from '../../domain/types';
+import { normalizeSettings } from '../../domain/format';
 import { LeagueLink } from '../../domain/league-import';
 import { readJson, removeKey, writeJson } from './storage';
 
@@ -39,7 +40,7 @@ function migrate(raw: Partial<PersistedState> | null): PersistedState {
   if (!raw || raw.schemaVersion !== SCHEMA_VERSION) return emptyState();
   return {
     schemaVersion: SCHEMA_VERSION,
-    settings: { ...DEFAULT_SETTINGS, ...raw.settings },
+    settings: normalizeSettings({ ...DEFAULT_SETTINGS, ...raw.settings }),
     options: { ...DEFAULT_MODEL_OPTIONS, ...raw.options },
     roster: Array.isArray(raw.roster) ? raw.roster : [],
     league: raw.league ?? null,
@@ -64,7 +65,7 @@ export class StoreService {
   }
 
   updateSettings(patch: Partial<LeagueSettings>): void {
-    this.state.update((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
+    this.state.update((s) => ({ ...s, settings: normalizeSettings({ ...s.settings, ...patch }) }));
   }
 
   setOption<K extends keyof ModelOptions>(key: K, value: ModelOptions[K]): void {
@@ -81,7 +82,7 @@ export class StoreService {
       ...s,
       roster: [...new Set(ids)],
       league,
-      settings: { ...s.settings, ...settings },
+      settings: normalizeSettings({ ...s.settings, ...settings }),
     }));
   }
 

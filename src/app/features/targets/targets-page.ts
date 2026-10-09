@@ -15,13 +15,18 @@ import { GapList } from '../../shared/gap-list';
     </p>
 
     @if (count() === 0) {
-      <p class="mt-8 rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-sm text-zinc-500">
-        Answer a few <a routerLink="/compare" class="text-emerald-400 hover:underline">comparisons</a>
+      <p
+        class="mt-8 rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-sm text-zinc-500"
+      >
+        Answer a few
+        <a routerLink="/compare" class="text-emerald-400 hover:underline">comparisons</a>
         to discover where you differ from consensus.
       </p>
     } @else {
       <section class="mt-6" aria-labelledby="buy-heading">
-        <h2 id="buy-heading" class="text-sm font-medium text-zinc-300">Buy: you're higher than consensus</h2>
+        <h2 id="buy-heading" class="text-sm font-medium text-zinc-300">
+          Buy: you're higher than consensus
+        </h2>
         <app-gap-list
           class="mt-2"
           [gaps]="valuation.gaps().targets"
@@ -31,16 +36,14 @@ import { GapList } from '../../shared/gap-list';
       </section>
 
       <section class="mt-8" aria-labelledby="sell-heading">
-        <h2 id="sell-heading" class="text-sm font-medium text-zinc-300">Sell: your players you're lower on</h2>
+        <h2 id="sell-heading" class="text-sm font-medium text-zinc-300">
+          Sell: your players you're lower on
+        </h2>
         <app-gap-list
           class="mt-2"
           [gaps]="valuation.gaps().sells"
           [explain]="explain"
-          [empty]="
-            store.roster().length === 0
-              ? 'Add your roster to see sell candidates.'
-              : 'You are in line with consensus on your roster so far.'
-          "
+          empty="You are in line with consensus on your roster so far."
         />
       </section>
     }

@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { SCORING_LABELS, SUPPORTED_FORMATS } from '../../../domain/format';
 import { LeagueSettings, Player, POSITIONS } from '../../../domain/types';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
@@ -22,15 +23,41 @@ export class RosterPage {
   protected readonly valuation = inject(ValuationService);
 
   protected readonly query = signal('');
-  /** Common league sizes, plus an imported league's size if it's unusual. */
-  protected readonly teamOptions = computed(() =>
-    [...new Set([8, 10, 12, 14, 16, this.store.settings().teams])].sort((a, b) => a - b),
-  );
-  protected readonly scoringOptions: { value: LeagueSettings['ppr']; label: string }[] = [
-    { value: 1, label: 'PPR' },
-    { value: 0.5, label: 'Half PPR' },
-    { value: 0, label: 'Standard' },
-  ];
+  /** Every choice FantasyCalc supports, grouped for tap-to-select buttons. */
+  protected readonly formatGroups = computed(() => {
+    const s = this.store.settings();
+    const option = (label: string, patch: Partial<LeagueSettings>, selected: boolean) => ({
+      label,
+      patch,
+      selected,
+    });
+    return [
+      {
+        label: 'Type',
+        options: [
+          option('Redraft', { dynasty: false }, !s.dynasty),
+          option('Dynasty', { dynasty: true }, s.dynasty),
+        ],
+      },
+      {
+        label: 'Teams',
+        options: SUPPORTED_FORMATS.teams.map((n) => option(String(n), { teams: n }, s.teams === n)),
+      },
+      {
+        label: 'Scoring',
+        options: ([1, 0.5, 0] as const).map((ppr) =>
+          option(SCORING_LABELS[ppr], { ppr }, s.ppr === ppr),
+        ),
+      },
+      {
+        label: 'QBs',
+        options: [
+          option('1 QB', { superflex: false }, !s.superflex),
+          option('Superflex', { superflex: true }, s.superflex),
+        ],
+      },
+    ];
+  });
 
   protected readonly results = computed(() => {
     const tokens = normalize(this.query()).split(/\s+/).filter(Boolean);
@@ -69,15 +96,4 @@ export class RosterPage {
     if (first) this.add(first);
   }
 
-  protected setTeams(value: string): void {
-    this.store.updateSettings({ teams: Number(value) });
-  }
-
-  protected setScoring(value: string): void {
-    this.store.updateSettings({ ppr: Number(value) as LeagueSettings['ppr'] });
-  }
-
-  protected setSuperflex(checked: boolean): void {
-    this.store.updateSettings({ superflex: checked });
-  }
 }

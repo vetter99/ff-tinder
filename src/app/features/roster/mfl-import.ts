@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { supportedPpr } from '../../../domain/format';
 import { matchMflRoster } from '../../../domain/league-import';
-import { Player } from '../../../domain/types';
+import { LeagueSettings, Player } from '../../../domain/types';
 import { MflLeague, MflLeagueSummary, MflService } from '../../core/mfl.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
@@ -124,7 +125,7 @@ export class MflImport {
         franchiseName: franchise.name,
         importedAt: Date.now(),
       },
-      { teams: league.teams, superflex: league.superflex },
+      this.formatFrom(league),
     );
     this.cancel();
   }
@@ -141,9 +142,18 @@ export class MflImport {
       this.store.importRoster(
         matched.map((p) => p.id),
         { ...link, leagueName: league.name, franchiseName: franchise.name, importedAt: Date.now() },
-        { teams: league.teams, superflex: league.superflex },
+        this.formatFrom(league),
       );
     });
+  }
+
+  /** League settings implied by the MFL league (the store maps them to supported formats). */
+  private formatFrom(league: MflLeague): Partial<LeagueSettings> {
+    return {
+      teams: league.teams,
+      superflex: league.superflex,
+      ...(league.ppr === null ? {} : { ppr: supportedPpr(league.ppr) }),
+    };
   }
 
   private async run(kind: 'search' | 'league' | 'sync', task: () => Promise<void>): Promise<void> {

@@ -25,7 +25,7 @@ const MIN_ROWS = 100;
 
 export function fantasyCalcUrl(settings: LeagueSettings): string {
   const params = new URLSearchParams({
-    isDynasty: 'false',
+    isDynasty: String(settings.dynasty),
     numQbs: settings.superflex ? '2' : '1',
     numTeams: String(settings.teams),
     ppr: String(settings.ppr),

@@ -10,6 +10,8 @@ export interface MflLeague {
   name: string;
   teams: number;
   superflex: boolean;
+  /** Points per reception from the league's scoring rules (null if unavailable). */
+  ppr: number | null;
   franchises: { id: string; name: string; playerIds: string[] }[];
 }
 

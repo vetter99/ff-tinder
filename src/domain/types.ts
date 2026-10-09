@@ -27,9 +27,16 @@ export interface LeagueSettings {
   teams: number;
   ppr: 0 | 0.5 | 1;
   superflex: boolean;
+  /** Dynasty (long-term) values instead of redraft (rest-of-season) values. */
+  dynasty: boolean;
 }
 
-export const DEFAULT_SETTINGS: LeagueSettings = { teams: 12, ppr: 1, superflex: false };
+export const DEFAULT_SETTINGS: LeagueSettings = {
+  teams: 12,
+  ppr: 1,
+  superflex: false,
+  dynasty: false,
+};
 
 /** One answer to "who would you rather own?". The append-only log of these is the source of truth. */
 export interface Comparison {
@@ -52,9 +59,12 @@ export interface ModelOptions {
   positionLean: boolean;
   /** Only suggest targets/trades involving players the user has directly compared. */
   requirePlayerEvidence: boolean;
+  /** Comparison screen: the picked player stays on for the next matchup. */
+  winnerStays: boolean;
 }
 
 export const DEFAULT_MODEL_OPTIONS: ModelOptions = {
   positionLean: false,
   requirePlayerEvidence: false,
+  winnerStays: false,
 };

@@ -4,7 +4,7 @@ import { StoreService } from './core/store.service';
 
 const hasRoster = () => inject(StoreService).roster().length > 0;
 
-/** Comparing is only useful once there's a roster to compare around; send new users to set one up. */
+/** Every page except Roster needs a roster to be useful; send new users to set one up first. */
 const requireRoster: CanActivateFn = () =>
   hasRoster() || inject(Router).createUrlTree(['/roster']);
 
@@ -25,16 +25,19 @@ export const routes: Routes = [
   {
     path: 'targets',
     title: 'Targets · FF Tinder',
+    canActivate: [requireRoster],
     loadComponent: () => import('./features/targets/targets-page').then((m) => m.TargetsPage),
   },
   {
     path: 'trades',
     title: 'Trade Ideas · FF Tinder',
+    canActivate: [requireRoster],
     loadComponent: () => import('./features/trades/trades-page').then((m) => m.TradesPage),
   },
   {
     path: 'profile',
     title: 'Profile · FF Tinder',
+    canActivate: [requireRoster],
     loadComponent: () => import('./features/profile/profile-page').then((m) => m.ProfilePage),
   },
   { path: '**', redirectTo: 'roster' },

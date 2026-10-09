@@ -130,6 +130,41 @@ describe('selectNextPair', () => {
     expect(scoreOf(stale)).toBeGreaterThan(scoreOf(fresh) * 2);
   });
 
+  it('includes a roster player in about half of matchups, not all of them', () => {
+    const players = makePlayers();
+    const byId = new Map(players.map((p) => [p.id, p]));
+    const roster = new Set(players.filter((_, i) => i % 9 === 3).slice(0, 16).map((p) => p.id));
+    let withRoster = 0;
+    let total = 0;
+    for (let seed = 1; seed <= 5; seed++) {
+      const random = seededRandom(seed);
+      const log: Comparison[] = [];
+      for (let i = 0; i < 40; i++) {
+        const [a, b] = selectNextPair(players, fitModel(log, byId), roster, log, random)!;
+        if (roster.has(a.id) || roster.has(b.id)) withRoster++;
+        total++;
+        log.push({ id: String(i), ts: Date.now(), winner: a.id, loser: b.id });
+      }
+    }
+    expect(withRoster / total).toBeGreaterThan(0.35);
+    expect(withRoster / total).toBeLessThan(0.75);
+  });
+
+  it('winner stays: keeps the chosen player first and finds them a fresh challenger', () => {
+    const players = makePlayers();
+    const champ = players[20];
+    const random = seededRandom(9);
+    const seen = new Set<string>();
+    for (let i = 0; i < 5; i++) {
+      const [a, b] = selectNextPair(players, emptyModel(), new Set(), [], random, { keep: champ.id })!;
+      expect(a.id).toBe(champ.id);
+      expect(b.id).not.toBe(champ.id);
+      expect(b.position === 'QB').toBe(champ.position === 'QB');
+      seen.add(b.id);
+    }
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
   it('prefers cross-position matchups during calibration', () => {
     const players = makePlayers();
     const random = seededRandom(3);

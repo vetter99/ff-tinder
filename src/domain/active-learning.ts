@@ -15,6 +15,8 @@ export const SELECTION = {
   /** Players within this many baseline points of a roster player are "roster relevant". */
   rosterRelevanceBand: 15,
   rosterBonus: 0.5,
+  /** Extra boost when one side of the matchup is actually on the user's roster (not a guarantee). */
+  rosterPlayerBonus: 0.3,
   /** Players seen in this many recent comparisons are down-weighted. */
   recentWindow: 6,
   recentPenalty: 0.3,
@@ -92,6 +94,7 @@ export function scorePairs(
       // QB-vs-QB is the only way to learn about QBs, so it gets the same boost as cross-position.
       if (a.position !== b.position || a.position === 'QB') score *= 1 + crossBonus;
       if (relevant(a) || relevant(b)) score *= 1 + SELECTION.rosterBonus;
+      if (rosterIds.has(a.id) || rosterIds.has(b.id)) score *= 1 + SELECTION.rosterPlayerBonus;
       if (recent.has(a.id)) score *= SELECTION.recentPenalty;
       if (recent.has(b.id)) score *= SELECTION.recentPenalty;
       if (asked.has(pairKey(a.id, b.id))) score *= SELECTION.repeatPairPenalty;
@@ -101,15 +104,26 @@ export function scorePairs(
   return pairs.sort((x, y) => y.score - x.score);
 }
 
-/** Picks the next matchup: softmax sample over the top-scoring pairs. Sides are randomized. */
+/**
+ * Picks the next matchup: softmax sample over the top-scoring pairs. Sides are randomized, except
+ * that a `keep` player ("winner stays") is always first and every candidate pair includes them.
+ */
 export function selectNextPair(
   players: readonly Player[],
   model: PreferenceModel,
   rosterIds: ReadonlySet<PlayerId>,
   history: readonly Comparison[],
   random: () => number = Math.random,
+  { keep }: { keep?: PlayerId } = {},
 ): [Player, Player] | null {
   let pairs = scorePairs(players, model, rosterIds, history);
+  if (keep) {
+    const withKeep = pairs.filter((p) => p.a.id === keep || p.b.id === keep);
+    if (withKeep.length > 0) {
+      const chosen = sample(withKeep, random);
+      return chosen.a.id === keep ? [chosen.a, chosen.b] : [chosen.b, chosen.a];
+    }
+  }
   // QBs can only be compared with each other and are worth less than top RBs/WRs in 1QB formats,
   // so without a quota they would never come up.
   const qbIds = new Set(players.filter((p) => p.position === 'QB').map((p) => p.id));
@@ -118,9 +132,14 @@ export function selectNextPair(
     const qbPairs = pairs.filter((p) => p.a.position === 'QB');
     if (qbPairs.length > 0) pairs = qbPairs;
   }
-  const top = pairs.slice(0, SELECTION.topK);
-  if (top.length === 0) return null;
+  if (pairs.length === 0) return null;
+  const chosen = sample(pairs, random);
+  return random() < 0.5 ? [chosen.a, chosen.b] : [chosen.b, chosen.a];
+}
 
+/** Softmax sample among the top-K pairs (pairs must be sorted best first and non-empty). */
+function sample(pairs: readonly ScoredPair[], random: () => number): ScoredPair {
+  const top = pairs.slice(0, SELECTION.topK);
   const best = top[0].score;
   const weights = top.map((p) => Math.exp((p.score / best - 1) / SELECTION.temperature));
   let r = random() * weights.reduce((s, w) => s + w, 0);
@@ -132,5 +151,5 @@ export function selectNextPair(
       break;
     }
   }
-  return random() < 0.5 ? [chosen.a, chosen.b] : [chosen.b, chosen.a];
+  return chosen;
 }

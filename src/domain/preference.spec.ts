@@ -204,6 +204,8 @@ describe('simulated user', () => {
       active += errorOf(simulate(seed, 30, 'active', 'spread'));
       random += errorOf(simulate(seed, 30, 'random', 'spread'));
     }
-    expect(active).toBeLessThan(random * 0.85);
+    // Roughly half of matchups deliberately include the user's own players, which trades a little
+    // league-wide accuracy for more about the players they can actually trade.
+    expect(active).toBeLessThan(random * 0.9);
   });
 });

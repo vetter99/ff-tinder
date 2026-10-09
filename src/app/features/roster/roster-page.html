@@ -94,42 +94,44 @@
   }
 </section>
 
-<section class="mt-8" aria-labelledby="league-heading">
+<section id="format" class="mt-8" aria-labelledby="league-heading">
   <h2 id="league-heading" class="text-sm font-medium text-zinc-300">League format</h2>
-  <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-    <label class="text-xs text-zinc-400">
-      Teams
-      <select
-        class="mt-1 block w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 py-2 text-sm text-zinc-100"
-        (change)="setTeams($any($event.target).value)"
-      >
-        @for (n of teamOptions(); track n) {
-          <option [value]="n" [selected]="n === store.settings().teams">{{ n }}</option>
-        }
-      </select>
-    </label>
-    <label class="text-xs text-zinc-400">
-      Scoring
-      <select
-        class="mt-1 block w-full rounded-md border border-zinc-800 bg-zinc-900 px-2 py-2 text-sm text-zinc-100"
-        (change)="setScoring($any($event.target).value)"
-      >
-        @for (o of scoringOptions; track o.value) {
-          <option [value]="o.value" [selected]="o.value === store.settings().ppr">{{ o.label }}</option>
-        }
-      </select>
-    </label>
-    <label class="flex items-center gap-2 self-end py-2 text-sm text-zinc-300">
-      <input
-        type="checkbox"
-        class="size-4 accent-emerald-500"
-        [checked]="store.settings().superflex"
-        (change)="setSuperflex($any($event.target).checked)"
-      />
-      Superflex
-    </label>
+  <p class="mt-1 text-xs text-zinc-500">
+    Picks which FantasyCalc market values to use. Only formats FantasyCalc publishes values for are
+    offered.
+  </p>
+  <div class="mt-3 space-y-3">
+    @for (group of formatGroups(); track group.label) {
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span class="w-16 text-xs text-zinc-400" [id]="'fmt-' + group.label">{{ group.label }}</span>
+        <div class="flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-labelledby]="'fmt-' + group.label">
+          @for (o of group.options; track o.label) {
+            <button
+              type="button"
+              role="radio"
+              class="rounded-full border px-3 py-1.5 text-sm"
+              [class]="
+                o.selected
+                  ? 'border-emerald-500 bg-emerald-500/15 text-emerald-200'
+                  : 'border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+              "
+              [attr.aria-checked]="o.selected"
+              (click)="store.updateSettings(o.patch)"
+            >
+              {{ o.label }}
+            </button>
+          }
+        </div>
+      </div>
+    }
   </div>
+  @if (store.league(); as link) {
+    <p class="mt-3 text-xs text-zinc-500">
+      Set from your MyFantasyLeague import; change it here if anything's off.
+    </p>
+  }
   <p class="mt-2 text-xs text-zinc-500">
-    Format changes which FantasyCalc market values are used. Trade ideas ignore your lineup.
+    Dynasty uses long-term values (and covers more young players) instead of rest-of-season values.
+    Trade ideas ignore your lineup either way.
   </p>
 </section>

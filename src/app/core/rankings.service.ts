@@ -33,7 +33,8 @@ export interface RankingsState {
   error: string | null;
 }
 
-const settingsKey = (s: LeagueSettings) => `${s.teams}-${s.ppr}-${s.superflex ? 2 : 1}qb`;
+const settingsKey = (s: LeagueSettings) =>
+  `${s.teams}-${s.ppr}-${s.superflex ? 2 : 1}qb${s.dynasty ? '-dynasty' : ''}`;
 
 /**
  * Loads market values with a fallback chain so a FantasyCalc outage never breaks the app:

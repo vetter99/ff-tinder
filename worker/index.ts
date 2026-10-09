@@ -5,8 +5,9 @@
  *   GET /api/mfl/search?q=<name or id>   → leagues matching a name, or one league by id
  *   GET /api/mfl/league?id=<league id>   → league name, settings hints and every franchise's roster
  *   GET /api/mfl/players?ids=<a,b,c>     → names/positions for MFL player ids
+ *   GET /api/news?espn=<ESPN player id>   → a player's latest news blurbs, trimmed from ESPN's feed
  *
- * Only these fixed, public export requests are forwarded, so this can't be used as an open proxy.
+ * Only these fixed, public read-only requests are forwarded, so this can't be used as an open proxy.
  */
 
 interface Env {
@@ -18,6 +19,7 @@ const MFL_API = 'https://api.myfantasyleague.com';
 const USER_AGENT = 'FF-Tinder/1.0';
 const LEAGUE_TTL_S = 300;
 const PLAYERS_TTL_S = 86_400;
+const NEWS_TTL_S = 1_800;
 
 export default {
   async fetch(request: Request, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
@@ -33,6 +35,8 @@ export default {
           return await cached(request, ctx, LEAGUE_TTL_S, () => league(url.searchParams.get('id')));
         case '/api/mfl/players':
           return await cached(request, ctx, PLAYERS_TTL_S, () => players(url.searchParams.get('ids')));
+        case '/api/news':
+          return await cached(request, ctx, NEWS_TTL_S, () => news(url.searchParams.get('espn')));
         default:
           return json({ error: 'Not found' }, 404);
       }
@@ -108,9 +112,10 @@ interface MflStarterPosition {
 
 async function league(id: string | null) {
   if (!id || !/^\d{4,6}$/.test(id)) throw new HttpError(400, 'Invalid league ID');
-  const [leagueBody, rostersBody] = await Promise.all([
+  const [leagueBody, rostersBody, rulesBody] = await Promise.all([
     mfl('league', { L: id }),
     mfl('rosters', { L: id }),
+    mfl('rules', { L: id }).catch(() => null),
   ]);
   const info = leagueBody['league'] as {
     name: string;
@@ -130,11 +135,71 @@ async function league(id: string | null) {
     teams: franchises.length,
     // A QB limit like "1-2" means a second QB can start: superflex.
     superflex: /-\s*[2-9]/.test(qbLimit) || Number(qbLimit) >= 2,
+    ppr: rulesBody ? receptionPoints(rulesBody) : null,
     franchises: franchises.map((f) => ({
       id: f.id,
       name: f.name ?? `Team ${f.id}`,
       playerIds: rosters.get(f.id) ?? [],
     })),
+  };
+}
+
+interface MflRule {
+  event: { $t: string } | string;
+  points: { $t: string } | string;
+}
+interface MflPositionRules {
+  positions: string;
+  rule?: MflRule | MflRule[];
+}
+
+/** Points per reception for WRs from the league's scoring rules ("*1" = PPR, "*.5" = half). */
+export function receptionPoints(rulesBody: Record<string, unknown>): number {
+  const text = (v: { $t: string } | string) => (typeof v === 'string' ? v : v.$t);
+  const groups = list((rulesBody['rules'] as { positionRules?: MflPositionRules | MflPositionRules[] })?.positionRules);
+  for (const group of groups) {
+    if (!group.positions.split('|').includes('WR')) continue;
+    const catchRule = list(group.rule).find((r) => text(r.event) === 'CC');
+    if (catchRule) return Number(text(catchRule.points).replace('*', '')) || 0;
+  }
+  return 0;
+}
+
+interface EspnNewsItem {
+  type?: string;
+  headline?: string;
+  story?: string;
+  description?: string;
+  published?: string;
+}
+
+/** Latest player updates (RotoWire blurbs on ESPN), trimmed to a few hundred bytes. */
+async function news(espnId: string | null) {
+  if (!espnId || !/^\d{1,10}$/.test(espnId)) throw new HttpError(400, 'Invalid player ID');
+  const res = await fetch(
+    `https://site.api.espn.com/apis/fantasy/v2/games/ffl/news/players?limit=15&playerId=${espnId}`,
+    { headers: { 'User-Agent': USER_AGENT } },
+  );
+  if (!res.ok) throw new HttpError(502, `ESPN responded ${res.status}`);
+  const feed = ((await res.json()) as { feed?: EspnNewsItem[] }).feed ?? [];
+  const plain = (html = '') =>
+    html
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  return {
+    items: feed
+      .filter((item) => item.type === 'Rotowire' && item.headline)
+      .slice(0, 4)
+      .map((item) => {
+        const story = plain(item.story ?? item.description);
+        return {
+          headline: plain(item.headline),
+          summary: story.length > 280 ? `${story.slice(0, 277).trimEnd()}…` : story,
+          published: item.published ?? null,
+        };
+      }),
   };
 }
 
