@@ -7,7 +7,7 @@
     <dd class="mt-1 text-2xl font-semibold tabular-nums">{{ stats().comparisons }}</dd>
   </div>
   <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-    <dt class="text-xs text-zinc-500">Informative</dt>
+    <dt class="text-xs text-zinc-500">Recent informative</dt>
     <dd class="mt-1 text-2xl font-semibold tabular-nums">{{ stats().informative.toFixed(1) }}</dd>
   </div>
   <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
@@ -18,8 +18,16 @@
 <p class="mt-2 text-xs text-zinc-500">
   Your values are currently {{ 100 - stats().personalShare }}% consensus and
   {{ stats().personalShare }}% your own answers (personal share caps at 50%). Easy answers count less
-  than close calls.
+  than close calls, and answers fade over time: each one counts half as much after 3 weeks.
 </p>
+@if (valuation.refreshCount() > 0) {
+  <p class="mt-3 rounded-md bg-sky-950/40 px-3 py-2 text-xs text-sky-200">
+    {{ valuation.refreshCount() }} player{{ valuation.refreshCount() === 1 ? '' : 's' }} you've
+    compared {{ valuation.refreshCount() === 1 ? 'needs' : 'need' }} a refresh: your answers about
+    them are old or their market value has moved a lot. A few
+    <a routerLink="/compare" class="text-sky-300 underline">comparisons</a> will update them.
+  </p>
+}
 
 <section class="mt-8" aria-labelledby="settings-heading">
   <h2 id="settings-heading" class="text-sm font-medium text-zinc-300">How suggestions are made</h2>

@@ -3,6 +3,7 @@ import { CALIBRATION_COMPARISONS } from '../../domain/active-learning';
 import {
   fitModel,
   MODEL,
+  needsRefresh,
   personalValues,
   personalWeight,
   positionLeans,
@@ -43,6 +44,10 @@ export class ValuationService {
   );
   readonly values = computed(() => personalValues(this.players(), this.model()));
   readonly weight = computed(() => personalWeight(this.model().evidence));
+  /** Players whose answers have faded or gone stale (the weekly check-in). */
+  readonly refreshCount = computed(
+    () => [...this.model().players.values()].filter((b) => needsRefresh(b)).length,
+  );
   /** 0–1 share of the maximum personalization reached. */
   readonly confidence = computed(() => this.weight() / MODEL.maxPersonalWeight);
   readonly leans = computed(() => positionLeans(this.model()));

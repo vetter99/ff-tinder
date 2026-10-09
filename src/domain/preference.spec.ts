@@ -1,9 +1,12 @@
 import { selectNextPair } from './active-learning';
 import {
   applyComparison,
+  comparisonWeight,
   emptyModel,
   fitModel,
+  FRESHNESS,
   latentValue,
+  needsRefresh,
   personalValues,
   personalWeight,
   positionLeans,
@@ -59,8 +62,9 @@ describe('preference model', () => {
       { id: '2', ts: 2, winner: 'a', loser: 'gone' },
       { id: '3', ts: 3, winner: 'b', loser: 'a', tie: true },
     ];
-    const m1 = fitModel(log, byId);
-    const m2 = fitModel(log, byId);
+    const now = 10;
+    const m1 = fitModel(log, byId, { now });
+    const m2 = fitModel(log, byId, { now });
     expect(m1.comparisons).toBe(2);
     expect(m1.players.get('a')).toEqual(m2.players.get('a'));
   });
@@ -71,6 +75,44 @@ describe('preference model', () => {
     expect(personalWeight(10)).toBeCloseTo(0.25);
     expect(personalWeight(50)).toBeGreaterThan(0.4);
     expect(personalWeight(10_000)).toBeLessThan(0.5);
+  });
+});
+
+describe('answer freshness', () => {
+  const now = Date.UTC(2026, 9, 15);
+  const day = 24 * 60 * 60 * 1000;
+  const a = makePlayer('a', 'RB', 50);
+  const b = makePlayer('b', 'WR', 50);
+  const byId = new Map<PlayerId, Player>([['a', a], ['b', b]]);
+  const answer = (daysAgo: number, baselines?: [number, number]): Comparison => ({
+    id: String(daysAgo),
+    ts: now - daysAgo * day,
+    winner: 'a',
+    loser: 'b',
+    baselines,
+  });
+
+  it('halves an answer\'s weight every half-life', () => {
+    expect(comparisonWeight(answer(0), a, b, now)).toBeCloseTo(1);
+    expect(comparisonWeight(answer(FRESHNESS.halfLifeDays), a, b, now)).toBeCloseTo(0.5);
+    expect(comparisonWeight(answer(2 * FRESHNESS.halfLifeDays), a, b, now)).toBeCloseTo(0.25);
+  });
+
+  it('mostly discounts answers about players whose market value moved a lot since', () => {
+    expect(comparisonWeight(answer(0, [52, 48]), a, b, now)).toBeCloseTo(1);
+    expect(comparisonWeight(answer(0, [80, 50]), a, b, now)).toBeCloseTo(FRESHNESS.staleWeight);
+    // Small absolute wiggles in low-value players don't count as big moves.
+    const scrub = makePlayer('s', 'WR', 4);
+    expect(comparisonWeight({ ...answer(0, [50, 2]), loser: 's' }, a, scrub, now)).toBeCloseTo(1);
+  });
+
+  it('lets old answers count less, so values and confidence drift back toward the market', () => {
+    const fresh = fitModel([answer(0)], byId, { now });
+    const old = fitModel([answer(63)], byId, { now });
+    expect(old.players.get("a")!.mean).toBeLessThan(fresh.players.get("a")!.mean / 3);
+    expect(old.evidence).toBeLessThan(fresh.evidence / 4);
+    expect(needsRefresh(old.players.get('a'))).toBe(true);
+    expect(needsRefresh(fresh.players.get('a'))).toBe(false);
   });
 });
 
@@ -121,7 +163,7 @@ describe('simulated user', () => {
       const [x, y] = pair;
       const pX = 1 / (1 + Math.exp(-(truth(x) - truth(y)) / 8));
       const xWins = random() < pX;
-      log.push({ id: String(i), ts: i, winner: xWins ? x.id : y.id, loser: xWins ? y.id : x.id });
+      log.push({ id: String(i), ts: Date.now(), winner: xWins ? x.id : y.id, loser: xWins ? y.id : x.id });
       model = fitModel(log, byId);
     }
     const values = personalValues(players, model);

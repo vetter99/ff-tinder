@@ -1,4 +1,4 @@
-import { selectNextPair } from './active-learning';
+import { scorePairs, selectNextPair } from './active-learning';
 import { emptyModel, fitModel, personalValues, PersonalValue } from './preference';
 import { findValueGaps } from './targets';
 import { makePlayer, makePlayers, seededRandom } from './testing';
@@ -110,9 +110,24 @@ describe('selectNextPair', () => {
       // Without a roster, matchups should stay among players who matter.
       expect(Math.max(a.market.overallRank, b.market.overallRank)).toBeLessThanOrEqual(100);
       if (a.position === 'QB') qbPairs++;
-      log.push({ id: String(i), ts: i, winner: a.id, loser: b.id });
+      log.push({ id: String(i), ts: Date.now(), winner: a.id, loser: b.id });
     }
     expect(qbPairs).toBeGreaterThanOrEqual(60 / 8 - 1);
+  });
+
+  it('boosts players whose answers have gone stale (weekly check-in)', () => {
+    const players = makePlayers(40);
+    const byId = new Map(players.map((p) => [p.id, p]));
+    const [x, y] = [players[10], players[11]];
+    const scoreOf = (model: ReturnType<typeof fitModel>) =>
+      scorePairs(players, model, new Set(), []).find(
+        (p) => (p.a.id === x.id && p.b.id === y.id) || (p.a.id === y.id && p.b.id === x.id),
+      )!.score;
+    const answeredAt = (ts: number) => [{ id: '1', ts, winner: x.id, loser: y.id }];
+    const now = Date.now();
+    const fresh = fitModel(answeredAt(now), byId, { now });
+    const stale = fitModel(answeredAt(now - 60 * 24 * 60 * 60 * 1000), byId, { now });
+    expect(scoreOf(stale)).toBeGreaterThan(scoreOf(fresh) * 2);
   });
 
   it('prefers cross-position matchups during calibration', () => {

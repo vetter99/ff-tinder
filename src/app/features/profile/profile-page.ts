@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { valueChart } from '../../../domain/value-chart';
 import { ModelOptions, Position, POSITIONS } from '../../../domain/types';
 import { RankingsService } from '../../core/rankings.service';
@@ -14,7 +15,7 @@ const CHART_PREVIEW_ROWS = 50;
 
 @Component({
   selector: 'app-profile-page',
-  imports: [GapList, HelpTip, PlayerLine, PositionBadge],
+  imports: [GapList, HelpTip, PlayerLine, PositionBadge, RouterLink],
   templateUrl: './profile-page.html',
 })
 export class ProfilePage {

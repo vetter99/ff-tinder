@@ -24,6 +24,46 @@ export const MODEL = {
   halfWeightEvidence: 10,
 };
 
+/**
+ * How answers lose influence over time. Values change week to week (injuries, trades, roles),
+ * so old answers fade and answers about players whose market value has since moved a lot are
+ * mostly discounted.
+ */
+export const FRESHNESS = {
+  /** An answer's weight halves every this many days. */
+  halfLifeDays: 21,
+  /** A player whose market value moved more than this share since the answer makes it stale… */
+  staleMoveShare: 0.25,
+  /** …and a stale answer keeps only this much of its weight. */
+  staleWeight: 0.2,
+  /** Relative moves are measured against at least this baseline, so low-value noise is ignored. */
+  minBaselineForMove: 10,
+  /** A player "needs a refresh" when their answers' average weight falls below this. */
+  refreshBelow: 0.5,
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Weight of a past answer today: time decay × stale-move discount. */
+export function comparisonWeight(
+  c: Comparison,
+  winner: Player,
+  loser: Player,
+  now: number,
+): number {
+  const ageDays = Math.max(0, (now - c.ts) / DAY_MS);
+  let weight = 0.5 ** (ageDays / FRESHNESS.halfLifeDays);
+  if (c.baselines) {
+    const moved = (then: number, current: number) =>
+      Math.abs(current - then) / Math.max(then, FRESHNESS.minBaselineForMove) >
+      FRESHNESS.staleMoveShare;
+    if (moved(c.baselines[0], winner.market.baseline) || moved(c.baselines[1], loser.market.baseline)) {
+      weight *= FRESHNESS.staleWeight;
+    }
+  }
+  return weight;
+}
+
 export interface Belief {
   mean: number;
   variance: number;
@@ -31,6 +71,8 @@ export interface Belief {
 
 export interface PlayerBelief extends Belief {
   comparisons: number;
+  /** Sum of the current weights of this player's answers (≤ comparisons). */
+  weightedComparisons: number;
 }
 
 export interface PreferenceModel {
@@ -38,7 +80,10 @@ export interface PreferenceModel {
   positionLean: boolean;
   players: Map<PlayerId, PlayerBelief>;
   positions: Record<Position, Belief>;
-  /** Effective number of informative comparisons: Σ 4·p·(1−p), so obvious answers count ~0. */
+  /**
+   * Effective number of informative comparisons: Σ weight·4·p·(1−p), so obvious answers and
+   * old or stale answers count for little.
+   */
   evidence: number;
   comparisons: number;
 }
@@ -56,7 +101,7 @@ export function emptyModel(positionLean = true): PreferenceModel {
 function playerBelief(model: PreferenceModel, id: PlayerId): PlayerBelief {
   let b = model.players.get(id);
   if (!b) {
-    b = { mean: 0, variance: playerPrior(), comparisons: 0 };
+    b = { mean: 0, variance: playerPrior(), comparisons: 0, weightedComparisons: 0 };
     model.players.set(id, b);
   }
   return b;
@@ -86,18 +131,22 @@ export function preferenceProbability(model: PreferenceModel, a: Player, b: Play
   return sigmoid(z / Math.sqrt(1 + (Math.PI * v) / (8 * s * s)));
 }
 
-/** Applies one comparison in place. `outcome` is 1 if `winner` was picked, 0.5 for a tie. */
+/**
+ * Applies one comparison in place. `outcome` is 1 if `winner` was picked, 0.5 for a tie.
+ * `weight` (0–1) scales how much the answer counts; see {@link comparisonWeight}.
+ */
 export function applyComparison(
   model: PreferenceModel,
   winner: Player,
   loser: Player,
   outcome: 1 | 0.5,
+  weight = 1,
 ): void {
   const s = MODEL.scale;
   const p = preferenceProbability(model, winner, loser);
   const v = differenceVariance(model, winner, loser);
-  const gradient = (outcome - p) / s;
-  const curvature = (p * (1 - p)) / (s * s);
+  const gradient = (weight * (outcome - p)) / s;
+  const curvature = (weight * p * (1 - p)) / (s * s);
   const denom = 1 + v * curvature;
 
   const step = (b: Belief, sign: 1 | -1, prior: number) => {
@@ -113,33 +162,45 @@ export function applyComparison(
   const l = playerBelief(model, loser.id);
   step(w, 1, playerPrior());
   step(l, -1, playerPrior());
-  w.comparisons++;
-  l.comparisons++;
+  for (const b of [w, l]) {
+    b.comparisons++;
+    b.weightedComparisons += weight;
+  }
   if (model.positionLean && winner.position !== loser.position) {
     step(model.positions[winner.position], 1, positionPrior());
     step(model.positions[loser.position], -1, positionPrior());
   }
-  model.evidence += 4 * p * (1 - p);
+  model.evidence += weight * 4 * p * (1 - p);
   model.comparisons++;
 }
 
 /**
- * Rebuilds the model by replaying the comparison log against current baselines. Comparisons that
+ * Rebuilds the model by replaying the comparison log against current baselines, weighting each
+ * answer by its age and by how much the players' market values have moved since. Comparisons that
  * reference players no longer in the dataset are skipped.
  */
 export function fitModel(
   comparisons: readonly Comparison[],
   playersById: ReadonlyMap<PlayerId, Player>,
-  { positionLean = true } = {},
+  { positionLean = true, now = Date.now() } = {},
 ): PreferenceModel {
   const model = emptyModel(positionLean);
   for (const c of comparisons) {
     const winner = playersById.get(c.winner);
     const loser = playersById.get(c.loser);
     if (!winner || !loser) continue;
-    applyComparison(model, winner, loser, c.tie ? 0.5 : 1);
+    applyComparison(model, winner, loser, c.tie ? 0.5 : 1, comparisonWeight(c, winner, loser, now));
   }
   return model;
+}
+
+/** Whether a compared player's answers have faded enough that it's worth asking about them again. */
+export function needsRefresh(belief: PlayerBelief | undefined): boolean {
+  return (
+    !!belief &&
+    belief.comparisons > 0 &&
+    belief.weightedComparisons / belief.comparisons < FRESHNESS.refreshBelow
+  );
 }
 
 /** Share of a player's value that comes from the personal model (the rest is market baseline). */

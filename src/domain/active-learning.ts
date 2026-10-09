@@ -1,4 +1,4 @@
-import { MODEL, PreferenceModel, preferenceProbability } from './preference';
+import { MODEL, needsRefresh, PreferenceModel, preferenceProbability } from './preference';
 import { Comparison, Player, PlayerId } from './types';
 
 /** Comparisons shown before trade ideas are considered meaningful. */
@@ -23,6 +23,8 @@ export const SELECTION = {
   repeatPairPenalty: 0.05,
   /** Down-weights matchups between low-value players: score × (baseline/100)^exponent. */
   importanceExponent: 0.35,
+  /** Weekly check-in: boost players whose earlier answers have faded or gone stale. */
+  refreshBonus: 1,
   /** At least one QB-vs-QB matchup in every this many. */
   qbEvery: 8,
   /** Sample from the best N pairs so the sequence doesn't feel scripted. */
@@ -85,6 +87,8 @@ export function scorePairs(
       // Matchups between low-value players look maximally uncertain but barely matter for trades.
       score *= (b.market.baseline / 100) ** SELECTION.importanceExponent;
       score *= surprise(a) * surprise(b);
+      if (needsRefresh(model.players.get(a.id))) score *= 1 + SELECTION.refreshBonus;
+      if (needsRefresh(model.players.get(b.id))) score *= 1 + SELECTION.refreshBonus;
       // QB-vs-QB is the only way to learn about QBs, so it gets the same boost as cross-position.
       if (a.position !== b.position || a.position === 'QB') score *= 1 + crossBonus;
       if (relevant(a) || relevant(b)) score *= 1 + SELECTION.rosterBonus;
