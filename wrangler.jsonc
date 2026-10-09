@@ -1,10 +1,13 @@
-// Cloudflare Workers static-assets config. The build (`npm run build`) runs first; this serves its
-// output and falls back to index.html so app routes like /compare work on refresh.
+// Cloudflare Worker: serves the built app as static assets and runs worker/index.ts for /api/*
+// (the MyFantasyLeague proxy). App routes like /compare fall back to index.html.
 {
   "name": "ff-tinder",
+  "main": "worker/index.ts",
   "compatibility_date": "2025-09-01",
   "assets": {
     "directory": "./dist/ff-tinder/browser",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
   },
 }

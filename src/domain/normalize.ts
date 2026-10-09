@@ -7,6 +7,7 @@ export interface FantasyCalcRow {
     name: string;
     position: string;
     sleeperId?: string | null;
+    mflId?: string | null;
     espnId?: string | null;
     maybeTeam?: string | null;
     maybeAge?: number | null;
@@ -37,6 +38,7 @@ export function normalizeFantasyCalc(rows: readonly FantasyCalcRow[]): Player[] 
       ids: {
         sleeper: r.player.sleeperId ?? null,
         espn: r.player.espnId ?? null,
+        mfl: r.player.mflId ?? null,
         fantasycalc: r.player.id,
       },
       market: {

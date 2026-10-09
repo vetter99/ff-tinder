@@ -26,7 +26,7 @@ export function makePlayer(
     team: 'FA',
     position,
     age: 25,
-    ids: { sleeper: id, espn: null, fantasycalc: 0 },
+    ids: { sleeper: id, espn: null, mfl: null, fantasycalc: 0 },
     market: { rawValue: baseline * 100, overallRank, positionRank, tier: null, trend30Day: 0, baseline },
   };
 }

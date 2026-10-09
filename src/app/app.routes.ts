@@ -1,7 +1,16 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { CanActivateFn, Router, Routes } from '@angular/router';
+import { StoreService } from './core/store.service';
+
+const hasRoster = () => inject(StoreService).roster().length > 0;
+
+/** Comparing is only useful once there's a roster to compare around; send new users to set one up. */
+const requireRoster: CanActivateFn = () =>
+  hasRoster() || inject(Router).createUrlTree(['/roster']);
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'roster' },
+  // New users start by setting up their roster; returning users go straight to comparing.
+  { path: '', pathMatch: 'full', redirectTo: () => (hasRoster() ? 'compare' : 'roster') },
   {
     path: 'roster',
     title: 'Roster · FF Tinder',
@@ -10,6 +19,7 @@ export const routes: Routes = [
   {
     path: 'compare',
     title: 'Compare · FF Tinder',
+    canActivate: [requireRoster],
     loadComponent: () => import('./features/compare/compare-page').then((m) => m.ComparePage),
   },
   {

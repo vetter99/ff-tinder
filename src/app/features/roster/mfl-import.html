@@ -1,0 +1,159 @@
+@if (store.league(); as link) {
+  @if (!open()) {
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-3">
+      <div class="min-w-0 basis-full sm:flex-1 sm:basis-0">
+        <p class="truncate text-sm font-medium text-zinc-100">{{ link.franchiseName }}</p>
+        <p class="truncate text-xs text-zinc-500">
+          MyFantasyLeague · {{ link.leagueName }} · synced {{ syncedLabel() }}
+        </p>
+      </div>
+      <button
+        type="button"
+        class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800 disabled:opacity-50"
+        [disabled]="busy() !== null"
+        (click)="sync()"
+      >
+        {{ busy() === 'sync' ? 'Syncing…' : 'Sync roster' }}
+      </button>
+      <button type="button" class="text-xs text-zinc-500 hover:text-zinc-200" (click)="start()">
+        Change
+      </button>
+      <button type="button" class="text-xs text-zinc-500 hover:text-zinc-200" (click)="store.unlinkLeague()">
+        Unlink
+      </button>
+    </div>
+  }
+} @else if (!open()) {
+  <button
+    type="button"
+    class="flex w-full items-center justify-between rounded-lg border border-emerald-500/40 bg-emerald-500/5 px-4 py-3 text-left hover:bg-emerald-500/10"
+    (click)="start()"
+  >
+    <span>
+      <span class="block text-sm font-medium text-zinc-100">Import from MyFantasyLeague</span>
+      <span class="block text-xs text-zinc-400">Find your league, pick your team, done.</span>
+    </span>
+    <span class="text-emerald-400" aria-hidden="true">→</span>
+  </button>
+}
+
+@if (open()) {
+  <section class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4" aria-labelledby="mfl-heading">
+    <div class="flex items-center justify-between">
+      <h2 id="mfl-heading" class="text-sm font-medium text-zinc-200">Import from MyFantasyLeague</h2>
+      <button type="button" class="text-xs text-zinc-500 hover:text-zinc-200" (click)="cancel()">Cancel</button>
+    </div>
+
+    @if (!league()) {
+      <form class="mt-3 flex gap-2" (submit)="$event.preventDefault(); search()">
+        <label for="mfl-search" class="sr-only">League name, ID or URL</label>
+        <input
+          id="mfl-search"
+          type="search"
+          autocomplete="off"
+          placeholder="League name, ID, or paste its MFL link"
+          class="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-emerald-500 focus:outline-none"
+          [value]="query()"
+          (input)="query.set($any($event.target).value)"
+        />
+        <button
+          type="submit"
+          class="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-emerald-400 disabled:opacity-50"
+          [disabled]="busy() !== null || !query().trim()"
+        >
+          {{ busy() === 'search' || busy() === 'league' ? 'Searching…' : 'Find' }}
+        </button>
+      </form>
+    }
+
+    @if (error(); as e) {
+      <p class="mt-3 rounded-md bg-rose-950/40 px-3 py-2 text-xs text-rose-200" role="alert">{{ e }}</p>
+    }
+
+    @if (results(); as leagues) {
+      @if (leagues.length === 0) {
+        <p class="mt-3 text-sm text-zinc-500">No leagues found for that search this season.</p>
+      } @else {
+        <p class="mt-4 text-xs text-zinc-500">Pick your league</p>
+        <ul class="mt-2 max-h-72 divide-y divide-zinc-800/70 overflow-y-auto rounded-lg border border-zinc-800">
+          @for (l of leagues; track l.id) {
+            <li>
+              <button
+                type="button"
+                class="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm hover:bg-zinc-800"
+                (click)="chooseLeague(l.id)"
+              >
+                <span class="truncate text-zinc-100">{{ l.name }}</span>
+                <span class="ml-3 shrink-0 text-xs text-zinc-500">#{{ l.id }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    }
+
+    @if (league(); as lg) {
+      <div class="mt-3 flex items-baseline justify-between gap-2">
+        <p class="truncate text-sm text-zinc-300">
+          <span class="font-medium text-zinc-100">{{ lg.name }}</span> · {{ lg.teams }} teams{{
+            lg.superflex ? ' · superflex' : ''
+          }}
+        </p>
+        <button type="button" class="shrink-0 text-xs text-zinc-500 hover:text-zinc-200" (click)="league.set(null)">
+          Different league
+        </button>
+      </div>
+
+      @if (!selected()) {
+        <p class="mt-4 text-xs text-zinc-500">Which team is yours?</p>
+        <ul class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          @for (f of franchises(); track f.id) {
+            <li>
+              <button
+                type="button"
+                class="w-full rounded-lg border border-zinc-800 px-3 py-2.5 text-left hover:border-emerald-500/60 hover:bg-zinc-800/60"
+                (click)="chooseFranchise(f.id)"
+              >
+                <span class="block truncate text-sm font-medium text-zinc-100">{{ f.name }}</span>
+                <span class="block truncate text-xs text-zinc-500">
+                  {{ f.preview || 'No valued players' }}
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        @let f = selected()!;
+        <div class="mt-4 flex items-baseline justify-between">
+          <p class="text-sm text-zinc-200">
+            <span class="font-medium">{{ f.name }}</span> · {{ f.matched.length }} players
+          </p>
+          <button type="button" class="text-xs text-zinc-500 hover:text-zinc-200" (click)="franchiseId.set(null)">
+            Different team
+          </button>
+        </div>
+        <ul class="mt-2 max-h-64 divide-y divide-zinc-800/70 overflow-y-auto rounded-lg border border-zinc-800">
+          @for (p of f.matched; track p.id) {
+            <li class="px-3 py-2"><app-player-line [player]="p" [size]="28" /></li>
+          }
+        </ul>
+        @if (f.unmatched.length > 0) {
+          <p class="mt-2 text-xs text-zinc-500">
+            {{ f.unmatched.length }} not imported because FantasyCalc doesn't value them (kickers,
+            defenses, IDP, deep bench){{ unmatchedNames().length ? ': ' + unmatchedNames().join(', ') : '' }}.
+          </p>
+        }
+        <button
+          type="button"
+          class="mt-4 w-full rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
+          (click)="importSelected()"
+        >
+          Import {{ f.matched.length }} players
+        </button>
+        @if (store.roster().length > 0) {
+          <p class="mt-2 text-center text-xs text-zinc-500">This replaces your current roster.</p>
+        }
+      }
+    }
+  </section>
+}

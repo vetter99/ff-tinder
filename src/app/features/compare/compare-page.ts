@@ -95,7 +95,6 @@ export class ComparePage {
   protected readonly calibrationTotal = CALIBRATION_COMPARISONS;
   protected readonly calibrating = computed(() => this.count() < CALIBRATION_COMPARISONS);
   protected readonly toUnlock = computed(() => CALIBRATION_COMPARISONS - this.count());
-  protected readonly hasRoster = computed(() => this.store.roster().length > 0);
   protected readonly dailyGoal = DAILY_GOAL;
   protected readonly today = computed(() => {
     const start = new Date();

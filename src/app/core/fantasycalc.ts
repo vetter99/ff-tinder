@@ -8,6 +8,7 @@ const rowSchema = z.object({
     name: z.string(),
     position: z.string(),
     sleeperId: z.nullish(z.string()),
+    mflId: z.nullish(z.string()),
     espnId: z.nullish(z.string()),
     maybeTeam: z.nullish(z.string()),
     maybeAge: z.nullish(z.number()),

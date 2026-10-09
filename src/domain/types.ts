@@ -10,7 +10,7 @@ export interface Player {
   team: string | null;
   position: Position;
   age: number | null;
-  ids: { sleeper: string | null; espn: string | null; fantasycalc: number };
+  ids: { sleeper: string | null; espn: string | null; mfl: string | null; fantasycalc: number };
   market: {
     /** Raw FantasyCalc trade value. */
     rawValue: number;

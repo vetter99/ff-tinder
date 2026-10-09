@@ -7,6 +7,7 @@ import {
   ModelOptions,
   PlayerId,
 } from '../../domain/types';
+import { LeagueLink } from '../../domain/league-import';
 import { readJson, removeKey, writeJson } from './storage';
 
 const STORAGE_KEY = 'ff-tinder:state';
@@ -17,6 +18,8 @@ export interface PersistedState {
   settings: LeagueSettings;
   options: ModelOptions;
   roster: PlayerId[];
+  /** Set when the roster was imported from a league site. */
+  league: LeagueLink | null;
   comparisons: Comparison[];
 }
 
@@ -26,6 +29,7 @@ function emptyState(): PersistedState {
     settings: DEFAULT_SETTINGS,
     options: DEFAULT_MODEL_OPTIONS,
     roster: [],
+    league: null,
     comparisons: [],
   };
 }
@@ -38,6 +42,7 @@ function migrate(raw: Partial<PersistedState> | null): PersistedState {
     settings: { ...DEFAULT_SETTINGS, ...raw.settings },
     options: { ...DEFAULT_MODEL_OPTIONS, ...raw.options },
     roster: Array.isArray(raw.roster) ? raw.roster : [],
+    league: raw.league ?? null,
     comparisons: Array.isArray(raw.comparisons) ? raw.comparisons : [],
   };
 }
@@ -51,6 +56,7 @@ export class StoreService {
   readonly options = computed(() => this.state().options);
   readonly roster = computed(() => this.state().roster);
   readonly rosterIds = computed(() => new Set(this.state().roster));
+  readonly league = computed(() => this.state().league);
   readonly comparisons = computed(() => this.state().comparisons);
 
   constructor() {
@@ -67,6 +73,20 @@ export class StoreService {
 
   addToRoster(id: PlayerId): void {
     this.state.update((s) => (s.roster.includes(id) ? s : { ...s, roster: [...s.roster, id] }));
+  }
+
+  /** Replaces the roster with an imported one and remembers where it came from. */
+  importRoster(ids: PlayerId[], league: LeagueLink, settings: Partial<LeagueSettings>): void {
+    this.state.update((s) => ({
+      ...s,
+      roster: [...new Set(ids)],
+      league,
+      settings: { ...s.settings, ...settings },
+    }));
+  }
+
+  unlinkLeague(): void {
+    this.state.update((s) => ({ ...s, league: null }));
   }
 
   removeFromRoster(id: PlayerId): void {

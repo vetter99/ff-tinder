@@ -4,7 +4,8 @@ A browser-based fantasy football trade finder. You answer quick "who would you r
 matchups. The app learns how your valuations differ from the market and suggests 1-for-1 trades
 you'd like that are still fair by consensus value.
 
-Phase 1 is single-player: there are no accounts, no league sync and no backend. Everything you enter stays in your browser.
+It's single-player for now: there are no accounts, and everything you enter stays in your browser.
+You can import your roster from a public MyFantasyLeague league or add players by hand.
 
 ## Scoring algorithm
 
@@ -123,11 +124,28 @@ Requires Node 22.22.3+ or 24.15+ (the Angular 22 minimums).
 
 ```sh
 npm install
-npm start          # http://localhost:4200
+npm run worker     # the /api server (MyFantasyLeague proxy) on :8787; needed for league import
+npm start          # http://localhost:4200, forwards /api to the worker
 npm test           # unit tests, including simulated-user learning tests
 npm run build      # static site in dist/ff-tinder/browser
 npm run snapshot   # refresh public/data/snapshot.json, the offline fallback
 ```
+
+## League import (MyFantasyLeague)
+
+On the Roster page, **Import from MyFantasyLeague** lets you search by league name, league ID or a
+pasted MFL link, pick your team, and import its roster. The league's team count and superflex
+setting are applied too. The league stays linked, so **Sync roster** re-imports it after trades or
+pickups.
+
+- Players are matched by MFL player ID using the IDs FantasyCalc provides. Players FantasyCalc
+  doesn't value (kickers, defenses, IDP, deep bench) aren't imported, and the import screen lists
+  them by name.
+- MFL doesn't allow requests from other websites' browsers, so calls go through a small Cloudflare
+  Worker ([worker/index.ts](worker/index.ts)). It only forwards three fixed read-only MFL requests:
+  league search, league details with rosters, and player names. It caches responses for 5 minutes
+  (player names for a day).
+- **Only public leagues work for now.** Private leagues need MFL sign-in, which isn't built yet.
 
 ## Data and fallbacks
 
@@ -152,5 +170,6 @@ Hosted on Cloudflare Workers (static assets). Every push to `main` redeploys it.
 | Deploy command | `npx wrangler deploy` |
 | Node version | from `.node-version` (or set the `NODE_VERSION` environment variable) |
 
-[wrangler.jsonc](wrangler.jsonc) points the Worker at `dist/ff-tinder/browser` and serves
-`index.html` for app routes like `/compare`. No server code or secrets are involved.
+[wrangler.jsonc](wrangler.jsonc) serves `dist/ff-tinder/browser` as static assets (falling back to
+`index.html` for app routes like `/compare`) and runs [worker/index.ts](worker/index.ts) for
+`/api/*` requests. No secrets are involved.

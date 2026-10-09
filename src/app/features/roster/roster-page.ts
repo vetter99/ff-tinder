@@ -4,6 +4,7 @@ import { LeagueSettings, Player, POSITIONS } from '../../../domain/types';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { PlayerLine } from '../../shared/player-line';
+import { MflImport } from './mfl-import';
 
 const normalize = (s: string) =>
   s
@@ -13,7 +14,7 @@ const normalize = (s: string) =>
 
 @Component({
   selector: 'app-roster-page',
-  imports: [PlayerLine, RouterLink],
+  imports: [MflImport, PlayerLine, RouterLink],
   templateUrl: './roster-page.html',
 })
 export class RosterPage {
@@ -21,7 +22,10 @@ export class RosterPage {
   protected readonly valuation = inject(ValuationService);
 
   protected readonly query = signal('');
-  protected readonly teamOptions = [8, 10, 12, 14, 16];
+  /** Common league sizes, plus an imported league's size if it's unusual. */
+  protected readonly teamOptions = computed(() =>
+    [...new Set([8, 10, 12, 14, 16, this.store.settings().teams])].sort((a, b) => a - b),
+  );
   protected readonly scoringOptions: { value: LeagueSettings['ppr']; label: string }[] = [
     { value: 1, label: 'PPR' },
     { value: 0.5, label: 'Half PPR' },
