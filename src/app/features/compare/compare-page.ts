@@ -10,6 +10,23 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import {
+  ArrowRight,
+  Check,
+  Crown,
+  Flame,
+  Info,
+  Search,
+  Settings2,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  Trophy,
+  Undo2,
+  X,
+  type IconNode,
+} from 'lucide';
+import { Icon } from '../../shared/icon';
 import { CALIBRATION_COMPARISONS, selectNextPair } from '../../../domain/active-learning';
 import { formatSalaryShort } from '../../../domain/league-import';
 import { SCOUT_GOAL, scoutCount } from '../../../domain/scouting';
@@ -17,11 +34,9 @@ import { Player, PlayerId } from '../../../domain/types';
 import { LeagueService } from '../../core/league.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
-import { signed } from '../../shared/format';
 import { PlayerAvatar } from '../../shared/player-avatar';
 import { PositionBadge } from '../../shared/position-badge';
 import { PlayerInfoService } from '../../core/player-info.service';
-import { HelpTip } from '../../shared/help-tip';
 import { PlayerDetails } from '../../shared/player-details';
 import { PlayerSnapshot } from '../../shared/player-snapshot';
 import { teamColor } from '../../shared/team-colors';
@@ -32,7 +47,6 @@ const FLING_DISTANCE = 80;
 const TAP_SLOP = 10;
 /** How long the pick animation plays before the next pair flies in. */
 const LEAVE_MS = 280;
-const DAILY_GOAL = 10;
 /** Show an insight about the user's tastes every this many answers. */
 const INSIGHT_EVERY = 15;
 const TOAST_MS = 3000;
@@ -49,6 +63,7 @@ const CONFETTI_COLORS = ['#34d399', '#fbbf24', '#38bdf8', '#f472b6', '#a78bfa'];
 
 interface Toast {
   text: string;
+  icon?: IconNode;
   link: string | null;
   query?: Record<string, string>;
   big?: boolean;
@@ -69,7 +84,7 @@ type CardState = 'idle' | 'dragging' | 'armed' | 'chosen' | 'dropped' | 'tie';
 
 @Component({
   selector: 'app-compare-page',
-  imports: [HelpTip, PlayerAvatar, PlayerDetails, PlayerSnapshot, PositionBadge, RouterLink],
+  imports: [Icon, PlayerAvatar, PlayerDetails, PlayerSnapshot, PositionBadge, RouterLink],
   templateUrl: './compare-page.html',
   host: { '(window:keydown)': 'onKey($event)', class: 'block' },
 })
@@ -100,6 +115,7 @@ export class ComparePage {
     scoutCount(this.store.comparisons(), this.store.rosterIds(), this.scoutIds()),
   );
   protected readonly scoutGoal = SCOUT_GOAL;
+  protected readonly icons = { Check, Crown, Flame, Info, Search, Settings2, Undo2, X, ArrowRight };
   protected readonly ppr = computed(() => this.store.settings().ppr);
   /** Player whose stats/news sheet is open. */
   protected readonly detailsPlayer = signal<Player | null>(null);
@@ -123,13 +139,7 @@ export class ComparePage {
   protected readonly calibrationTotal = CALIBRATION_COMPARISONS;
   protected readonly calibrating = computed(() => this.count() < CALIBRATION_COMPARISONS);
   protected readonly toUnlock = computed(() => CALIBRATION_COMPARISONS - this.count());
-  protected readonly dailyGoal = DAILY_GOAL;
   protected readonly maxReign = MAX_REIGN;
-  protected readonly today = computed(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return this.store.comparisons().filter((c) => c.ts >= start.getTime()).length;
-  });
   protected readonly level = computed(() => {
     const n = this.count();
     const level = Math.floor(n / ANSWERS_PER_LEVEL) + 1;
@@ -191,6 +201,9 @@ export class ComparePage {
       this.champion.set({ id: winner.id, side, wins });
     }
   }
+
+  /** The small settings menu (winner stays). */
+  protected readonly settingsOpen = signal(false);
 
   protected toggleWinnerStays(on: boolean): void {
     this.store.setOption('winnerStays', on);
@@ -293,13 +306,20 @@ export class ComparePage {
     const level = this.level();
     const team = this.scoutTeam();
     if (team && this.scouted() === SCOUT_GOAL) {
-      this.showToast({ text: `Scouting done! See your ${team.name} offers`, link: '/trades', query: { team: team.id }, big: true });
+      this.showToast({
+        text: `Scouting done: see your ${team.name} offers`,
+        icon: Check,
+        link: '/trades',
+        query: { team: team.id },
+        big: true,
+      });
       this.burst(null, 40);
       return;
     }
     if (this.retired) {
       this.showToast({
-        text: `🏆 ${this.retired.name} won ${this.retired.wins} in a row`,
+        text: `${this.retired.name} won ${this.retired.wins} in a row`,
+        icon: Trophy,
         link: null,
         big: true,
       });
@@ -308,17 +328,17 @@ export class ComparePage {
       return;
     }
     if (level.level > levelBefore) {
-      this.showToast({ text: `Level up! ${level.title} · Lv ${level.level}`, link: null, big: true });
+      this.showToast({ text: `Level up: ${level.title}`, icon: Sparkles, link: null, big: true });
       this.burst(null, 40);
       return;
     }
     if (n === CALIBRATION_COMPARISONS) {
-      this.showToast({ text: 'Trade ideas unlocked', link: '/trades', big: true });
+      this.showToast({ text: 'Trade ideas unlocked', icon: Sparkles, link: '/trades', big: true });
       this.burst(null, 30);
       return;
     }
     if (this.streak() > 0 && this.streak() % STREAK_MILESTONE === 0) {
-      this.showToast({ text: `🔥 ${this.streak()} in a row!`, link: null, big: true });
+      this.showToast({ text: `${this.streak()} in a row`, icon: Flame, link: null, big: true });
       this.burst(null, 30);
       return;
     }
@@ -331,16 +351,24 @@ export class ComparePage {
       .find((t) => !targetsBefore.has(t.player.id) && !this.announced.has(t.player.id));
     if (newTarget) {
       this.announced.add(newTarget.player.id);
-      this.showToast({ text: `New trade target: ${newTarget.player.name}`, link: '/targets' });
+      this.showToast({
+        text: `New target: ${newTarget.player.name}`,
+        icon: TrendingUp,
+        link: '/trades',
+        query: { view: 'market' },
+      });
       return;
     }
     if (n % INSIGHT_EVERY === 0) {
-      const top = [...this.valuation.higherThanConsensus(), ...this.valuation.lowerThanConsensus()]
+      const top = [...this.valuation.higherThanMarket(), ...this.valuation.lowerThanMarket()]
         .sort((a, b) => Math.abs(b.personal.gap) - Math.abs(a.personal.gap))
         .at(0);
       if (top) {
+        const { personal, market } = this.valuation.positionRanks();
+        const pos = top.player.position;
         this.showToast({
-          text: `You're ${signed(top.personal.gap)} vs consensus on ${top.player.name}`,
+          text: `${top.player.name}: you ${pos}${personal.get(top.player.id)}, market ${pos}${market.get(top.player.id)}`,
+          icon: top.personal.gap > 0 ? TrendingUp : TrendingDown,
           link: '/profile',
         });
       }
@@ -390,6 +418,10 @@ export class ComparePage {
   protected onKey(event: KeyboardEvent): void {
     if (event.target instanceof HTMLInputElement || event.metaKey || event.ctrlKey) return;
     if (this.detailsPlayer()) return; // the details sheet handles its own keys
+    if (this.settingsOpen()) {
+      if (event.key === 'Escape') this.settingsOpen.set(false);
+      return;
+    }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') this.pick(0);
     else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') this.pick(1);
     else if (event.key === ' ' || event.key === 's') this.skip();

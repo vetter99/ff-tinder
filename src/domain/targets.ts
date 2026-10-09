@@ -46,21 +46,5 @@ export function findValueGaps(
   };
 }
 
-/** Human-readable explanation of where a gap comes from. */
-export function explainGap(g: ValueGap): string {
-  const { personal, player } = g;
-  const dir = personal.gap > 0 ? 'higher' : 'lower';
-  const parts: string[] = [];
-  if (Math.abs(personal.playerPart) >= 0.5) {
-    parts.push(
-      `${signed(personal.playerPart)} from ${personal.comparisons} direct comparison${personal.comparisons === 1 ? '' : 's'}`,
-    );
-  }
-  if (Math.abs(personal.positionPart) >= 0.5) {
-    parts.push(`${signed(personal.positionPart)} from your overall ${player.position} lean`);
-  }
-  const detail = parts.length ? ` (${parts.join(', ')})` : '';
-  return `You're ${Math.abs(personal.gap).toFixed(1)} points ${dir} than consensus on ${player.name}${detail}.`;
-}
 
 export const signed = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)}`;

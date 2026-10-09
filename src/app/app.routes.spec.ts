@@ -21,10 +21,16 @@ describe('routing', () => {
 
   it('opens every page once there is a roster', async () => {
     TestBed.inject(StoreService).addToRoster('4034');
-    for (const url of ['/compare', '/targets', '/trades', '/profile']) {
+    for (const url of ['/compare', '/trades', '/profile']) {
       await router.navigateByUrl(url);
       expect(router.url).toBe(url);
     }
+  });
+
+  it('sends the old Targets page to the Buy & sell view of Trades', async () => {
+    TestBed.inject(StoreService).addToRoster('4034');
+    await router.navigateByUrl('/targets');
+    expect(router.url).toBe('/trades?view=market');
   });
 
   it('sends users with a roster straight to comparing', async () => {

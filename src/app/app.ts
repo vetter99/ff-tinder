@@ -3,12 +3,12 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { TeamSyncService } from './core/team-sync.service';
 import { RankingsService } from './core/rankings.service';
 import { StoreService } from './core/store.service';
-import { formatLabel } from '../domain/format';
-import { relativeTime } from './shared/format';
+import { ArrowLeftRight, Layers, User, Users } from 'lucide';
+import { Icon } from './shared/icon';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [Icon, RouterOutlet, RouterLink, RouterLinkActive],
   templateUrl: './app.html',
 })
 export class App {
@@ -19,21 +19,12 @@ export class App {
   private readonly teamSync = inject(TeamSyncService);
 
   protected readonly nav = [
-    { path: '/roster', label: 'Roster', needsRoster: false },
-    { path: '/compare', label: 'Compare', needsRoster: true },
-    { path: '/targets', label: 'Targets', needsRoster: true },
-    { path: '/trades', label: 'Trades', needsRoster: true },
-    { path: '/profile', label: 'Profile', needsRoster: true },
+    { path: '/roster', label: 'Roster', icon: Users, needsRoster: false },
+    { path: '/compare', label: 'Swipe', icon: Layers, needsRoster: true },
+    { path: '/trades', label: 'Trades', icon: ArrowLeftRight, needsRoster: true },
+    { path: '/profile', label: 'Me', icon: User, needsRoster: true },
   ];
   protected readonly hasRoster = computed(() => this.store.roster().length > 0);
-
-  protected readonly freshness = computed(() => {
-    const at = this.rankings.fetchedAt();
-    const source = this.rankings.source();
-    if (!at || !source) return null;
-    const label = source === 'snapshot' ? 'offline snapshot' : relativeTime(at, Date.now());
-    return `${formatLabel(this.store.settings())} · ${label}`;
-  });
 
   constructor() {
     effect(() => {

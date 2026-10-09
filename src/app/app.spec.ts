@@ -22,8 +22,8 @@ describe('App', () => {
   it('locks every tab except Roster until there is a roster', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
-    expect(navText(fixture, 'nav a')).not.toContain('Compare');
-    expect(navText(fixture, 'nav [aria-disabled="true"]')).toContain('Compare');
+    expect(navText(fixture, 'nav a')).not.toContain('Swipe');
+    expect(navText(fixture, 'nav [aria-disabled="true"]')).toContain('Swipe');
     expect(navText(fixture, 'nav a')).toContain('Roster');
   });
 
@@ -31,8 +31,9 @@ describe('App', () => {
     TestBed.inject(StoreService).addToRoster('4034');
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
-    expect(navText(fixture, 'nav a')).toContain('Compare');
+    expect(navText(fixture, 'nav a')).toContain('Swipe');
     expect(navText(fixture, 'nav a')).toContain('Trades');
+    expect(navText(fixture, 'nav a')).toContain('Me');
   });
 });
 

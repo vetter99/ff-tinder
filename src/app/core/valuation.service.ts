@@ -69,16 +69,35 @@ export class ValuationService {
     }),
   );
 
-  /** Players the user is higher/lower on than consensus, regardless of roster. */
+  /**
+   * Each player's rank within their position by the user's values and by market value, so lists
+   * can say "You WR8 · Market WR14" instead of showing raw model points.
+   */
+  readonly positionRanks = computed(() => {
+    const values = this.values();
+    const personal = new Map<PlayerId, number>();
+    const market = new Map<PlayerId, number>();
+    const byPosition = new Map<string, Player[]>();
+    for (const p of this.players()) byPosition.set(p.position, [...(byPosition.get(p.position) ?? []), p]);
+    for (const group of byPosition.values()) {
+      const rank = (score: (p: Player) => number, into: Map<PlayerId, number>) =>
+        [...group].sort((a, b) => score(b) - score(a)).forEach((p, i) => into.set(p.id, i + 1));
+      rank((p) => values.get(p.id)?.value ?? p.market.baseline, personal);
+      rank((p) => p.market.baseline, market);
+    }
+    return { personal, market };
+  });
+
+  /** Players the user is higher/lower on than the market, regardless of roster. */
   private readonly allGaps = computed(() =>
     valueGaps(this.players(), this.values(), {
       requirePlayerEvidence: this.store.options().requirePlayerEvidence,
     }),
   );
-  readonly higherThanConsensus = computed(() =>
+  readonly higherThanMarket = computed(() =>
     this.allGaps().filter((g) => g.personal.gap > 0).slice(0, 15),
   );
-  readonly lowerThanConsensus = computed(() =>
+  readonly lowerThanMarket = computed(() =>
     this.allGaps().filter((g) => g.personal.gap < 0).slice(0, 15),
   );
 

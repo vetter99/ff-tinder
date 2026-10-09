@@ -2,26 +2,23 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { LeagueThreeWay } from '../../core/team-sync.service';
 import { StoreService } from '../../core/store.service';
 import { TradeVetoService } from '../../core/trade-veto.service';
-import { signed } from '../../shared/format';
+import { ArrowRight, Check, Copy, Star } from 'lucide';
+import { Icon } from '../../shared/icon';
+import { NopeStamp } from '../../shared/nope-stamp';
 import { PlayerLine } from '../../shared/player-line';
+import { StrengthMeter } from '../../shared/strength-meter';
 import { NeverButton } from './never-button';
 
 /** A gold 3-way match: you → team B → team C → you, with a message for the three-team chat. */
 @Component({
   selector: 'app-three-way-card',
-  imports: [PlayerLine, NeverButton],
+  imports: [Icon, NeverButton, NopeStamp, PlayerLine, StrengthMeter],
   template: `
     @if (leaving()) {
-      <span
-        class="stamp-pop pointer-events-none absolute top-10 right-4 z-10 rounded-lg border-2 border-rose-400 bg-zinc-950/70 px-2 py-0.5 text-sm font-black tracking-widest text-rose-300"
-        aria-hidden="true"
-        >NOPE ✕</span
-      >
+      <app-nope-stamp />
     }
-    <p
-      class="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-yellow-300 px-4 py-1.5 text-sm font-semibold text-zinc-950"
-    >
-      <span aria-hidden="true">★</span> 3-way match: all three teams want this
+    <p class="flex items-center gap-2 bg-amber-400 px-4 py-1.5 text-sm font-semibold text-zinc-950">
+      <app-icon [icon]="star" [size]="15" [filled]="true" /> 3-way match
     </p>
     <ol class="space-y-3 p-4">
       @for (leg of legs(); track $index) {
@@ -32,8 +29,8 @@ import { NeverButton } from './never-button';
             >{{ $index + 1 }}</span
           >
           <div class="min-w-0 flex-1">
-            <p class="truncate text-[11px] font-semibold tracking-wider text-amber-200/80 uppercase">
-              {{ leg.from }} → {{ leg.to }}
+            <p class="flex items-center gap-1 truncate text-xs font-medium text-zinc-500">
+              {{ leg.from }} <app-icon [icon]="arrow" [size]="12" /> {{ leg.to }}
             </p>
             <app-player-line class="mt-1" [player]="leg.player" />
           </div>
@@ -41,18 +38,16 @@ import { NeverButton } from './never-button';
       }
     </ol>
     <div class="px-4 pb-4">
-      <p class="text-xs text-zinc-400">
-        You like {{ match().second.sends.name }} more than consensus does next to {{ match().send.name }}
-        (edge <span class="font-semibold text-amber-200 tabular-nums">{{ signed(match().yourEdge) }}</span>),
-        and the other two teams each prefer what they get too. Every swap is fair by market.
-      </p>
+      <app-strength-meter [score]="match().score" tone="bg-amber-400" />
+      <p class="mt-2 text-xs text-zinc-400">All three teams come out ahead · fair prices</p>
       <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
         <button
           type="button"
-          class="rounded-full border border-amber-400/50 px-3.5 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/10"
+          class="inline-flex items-center gap-1.5 rounded-full border border-amber-400/50 px-3.5 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/10"
           (click)="copy()"
         >
-          {{ copied() ? 'Copied ✓' : 'Copy for the group chat' }}
+          <app-icon [icon]="copied() ? check : copyIcon" [size]="14" />
+          {{ copied() ? 'Copied' : 'Copy for group chat' }}
         </button>
         <app-never-button
           [send]="match().send"
@@ -65,7 +60,7 @@ import { NeverButton } from './never-button';
   `,
   host: {
     class:
-      'relative block overflow-hidden rounded-xl border border-amber-400/60 bg-amber-500/5 shadow-[0_0_24px_-8px] shadow-amber-400/40',
+      'relative block overflow-hidden rounded-xl border border-amber-400/60 bg-amber-500/5',
     '[class.never-out]': 'leaving()',
   },
 })
@@ -73,7 +68,10 @@ export class ThreeWayCard {
   readonly match = input.required<LeagueThreeWay>();
   protected readonly veto = inject(TradeVetoService);
   private readonly store = inject(StoreService);
-  protected readonly signed = signed;
+  protected readonly star = Star;
+  protected readonly arrow = ArrowRight;
+  protected readonly check = Check;
+  protected readonly copyIcon = Copy;
   protected readonly copied = signal(false);
 
   private readonly me = computed(() => this.store.league()?.franchiseName.trim() || 'Me');

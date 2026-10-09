@@ -1,6 +1,5 @@
 import { PersonalValue } from './preference';
-import { signed } from './targets';
-import { vetoKey } from './trades';
+import { tradeSummary, vetoKey } from './trades';
 import { Player, PlayerId } from './types';
 
 /**
@@ -48,13 +47,14 @@ export interface TradePackage {
   group: PackageGroup;
   /** Personal package value received minus sent. */
   personalGain: number;
-  /** Market package value received minus sent (positive = you get more by consensus). */
+  /** Market package value received minus sent (positive = you get more by market value). */
   marketDelta: number;
   marketDeltaShare: number;
-  /** How much more than consensus you prefer what you receive over what you send. */
+  /** How much more than the market you prefer what you receive over what you send. */
   edge: number;
   score: number;
-  reasons: string[];
+  /** One plain line explaining the deal. */
+  summary: string;
 }
 
 export interface PackageContext {
@@ -156,7 +156,7 @@ export function allPackages(ctx: PackageContext, rules = PACKAGE_RULES): TradePa
           marketDeltaShare: delta / larger,
           edge,
           score,
-          reasons: explain(send, receive, gap, delta / larger),
+          summary: tradeSummary(send, receive, gap, delta / larger),
         });
       }
     }
@@ -175,26 +175,6 @@ function groupOf(nSend: number, nReceive: number): PackageGroup {
   return nSend > nReceive ? 'consolidate' : 'spread';
 }
 
-function explain(
-  send: Player[],
-  receive: Player[],
-  gap: (p: Player) => number,
-  marketShare: number,
-): string[] {
-  const reasons: string[] = [];
-  for (const p of receive) if (gap(p) >= 0.5) reasons.push(`You value ${p.name} ${signed(gap(p))} above consensus.`);
-  for (const p of send) if (gap(p) <= -0.5) reasons.push(`You value ${p.name} ${signed(gap(p))} below consensus.`);
-  if (send.length > receive.length) reasons.push('Consolidating: fewer players back, freeing roster spots.');
-  if (send.length < receive.length) reasons.push('Adds depth: more players back than you send.');
-  if (reasons.length === 0) reasons.push('You prefer what you receive by more than consensus does.');
-  const pct = Math.round(Math.abs(marketShare) * 100);
-  reasons.push(
-    pct <= 2
-      ? 'Market values are essentially even.'
-      : `By consensus you ${marketShare > 0 ? 'gain' : 'give up'} about ${pct}% in market value.`,
-  );
-  return reasons;
-}
 
 function isQb(p: Player): boolean {
   return p.position === 'QB';

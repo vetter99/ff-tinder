@@ -8,7 +8,8 @@ import { MflLeague, MflLeagueSummary, MflService } from '../../core/mfl.service'
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { relativeTime } from '../../shared/format';
-import { HelpTip } from '../../shared/help-tip';
+import { ArrowRight, Star } from 'lucide';
+import { Icon } from '../../shared/icon';
 import { PlayerLine } from '../../shared/player-line';
 
 interface FranchiseOption {
@@ -23,7 +24,7 @@ interface FranchiseOption {
 /** Find an MFL league, pick your team, and import its roster. */
 @Component({
   selector: 'app-mfl-import',
-  imports: [PlayerLine, HelpTip],
+  imports: [Icon, PlayerLine],
   templateUrl: './mfl-import.html',
   host: { class: 'block' },
 })
@@ -34,6 +35,8 @@ export class MflImport {
   private readonly valuation = inject(ValuationService);
   private readonly teamSync = inject(TeamSyncService);
 
+  protected readonly star = Star;
+  protected readonly arrow = ArrowRight;
   protected readonly open = signal(false);
   protected readonly query = signal('');
   protected readonly busy = signal<'search' | 'league' | 'sync' | null>(null);
@@ -76,8 +79,8 @@ export class MflImport {
     if (members === null) return 'Loading your team’s saved answers…';
     const count = m.matches().length;
     const others = members - 1;
-    if (others === 0) return 'Answers saved to your team · no leaguemates here yet';
-    return `Answers saved to your team · ${others} leaguemate${others === 1 ? '' : 's'} here · ${count} trade match${count === 1 ? '' : 'es'}`;
+    if (others === 0) return 'No leaguemates here yet.';
+    return `${others} leaguemate${others === 1 ? '' : 's'} here · ${count} match${count === 1 ? '' : 'es'}`;
   });
 
   protected start(): void {

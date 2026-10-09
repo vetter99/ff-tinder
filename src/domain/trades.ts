@@ -1,5 +1,5 @@
 import { PersonalValue } from './preference';
-import { signed, ValueGap } from './targets';
+import { ValueGap } from './targets';
 import { Comparison, Player, PlayerId } from './types';
 
 export const TRADE_RULES = {
@@ -9,7 +9,7 @@ export const TRADE_RULES = {
   maxWinShare: 0.05,
   /** Absolute slack for low-value players, in baseline points. */
   marketFloor: 1,
-  /** Minimum preference edge: how much more than consensus the user prefers the incoming side. */
+  /** Minimum preference edge: how much more than the market the user prefers the incoming side. */
   minEdge: 1,
   maxPerIncoming: 2,
   maxPerOutgoing: 4,
@@ -21,11 +21,12 @@ export interface TradeIdea {
   receive: Player;
   /** Personal value received minus sent. */
   personalGain: number;
-  /** Market value received minus sent (positive = user gets more by consensus). */
+  /** Market value received minus sent (positive = user gets more by market value). */
   marketDelta: number;
   marketDeltaShare: number;
   score: number;
-  reasons: string[];
+  /** One plain line explaining the deal. */
+  summary: string;
 }
 
 export interface TradeContext {
@@ -83,7 +84,7 @@ export function allOneForOneIdeas(ctx: TradeContext, rules = TRADE_RULES): Trade
         marketDeltaShare: delta / larger,
         // Market value the other side gives away isn't a reason to rank a trade higher.
         score: edge + Math.min(0, delta),
-        reasons: explainTrade(send, receive, gap(send), gap(receive), delta),
+        summary: tradeSummary([send], [receive], gap, delta / larger),
       });
     }
   }
@@ -118,28 +119,31 @@ export function pickDiverse(ideas: readonly TradeIdea[], rules = TRADE_RULES): T
   return picked;
 }
 
-function explainTrade(
-  send: Player,
-  receive: Player,
-  gapOut: number,
-  gapIn: number,
-  marketDelta: number,
-): string[] {
-  const reasons: string[] = [];
-  if (gapIn >= 0.5) reasons.push(`You value ${receive.name} ${signed(gapIn)} above consensus.`);
-  if (gapOut <= -0.5) reasons.push(`You value ${send.name} ${signed(gapOut)} below consensus.`);
-  if (reasons.length === 0) {
-    reasons.push(`You prefer ${receive.name} to ${send.name} by more than consensus does.`);
-  }
-  const pct = Math.round(
-    (100 * Math.abs(marketDelta)) / Math.max(send.market.baseline, receive.market.baseline),
-  );
-  reasons.push(
-    pct <= 2
-      ? 'Market values are essentially even.'
-      : `By consensus you ${marketDelta > 0 ? 'gain' : 'give up'} about ${pct}% in market value.`,
-  );
-  return reasons;
+/**
+ * One plain line for a trade card, e.g. "You're higher on Kyren Williams than the market · even
+ * price": the player who most drives the deal, then the price by market value.
+ */
+export function tradeSummary(
+  send: readonly Player[],
+  receive: readonly Player[],
+  gap: (p: Player) => number,
+  marketShare: number,
+): string {
+  const liked = [...receive].sort((a, b) => gap(b) - gap(a))[0];
+  const disliked = [...send].sort((a, b) => gap(a) - gap(b))[0];
+  const why =
+    liked && gap(liked) >= 0.5 && gap(liked) >= -gap(disliked)
+      ? `You're higher on ${liked.name} than the market`
+      : disliked && gap(disliked) <= -0.5
+        ? `You're lower on ${disliked.name} than the market`
+        : 'You like this side more than the market does';
+  return `${why} · ${priceLabel(marketShare)}`;
+}
+
+/** The price of a deal by market value: "even price", "you pay 7% more", "you get 4% more value". */
+export function priceLabel(marketShare: number): string {
+  const pct = Math.round(Math.abs(marketShare) * 100);
+  return pct <= 2 ? 'even price' : marketShare > 0 ? `you get ${pct}% more value` : `you pay ${pct}% more`;
 }
 
 export interface RankedTarget extends ValueGap {

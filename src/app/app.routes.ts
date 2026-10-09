@@ -18,25 +18,21 @@ export const routes: Routes = [
   },
   {
     path: 'compare',
-    title: 'Compare · FF Tinder',
+    title: 'Swipe · FF Tinder',
     canActivate: [requireRoster],
     loadComponent: () => import('./features/compare/compare-page').then((m) => m.ComparePage),
   },
-  {
-    path: 'targets',
-    title: 'Targets · FF Tinder',
-    canActivate: [requireRoster],
-    loadComponent: () => import('./features/targets/targets-page').then((m) => m.TargetsPage),
-  },
+  // Targets became the "Buy & sell" view of Trades.
+  { path: 'targets', redirectTo: () => inject(Router).parseUrl('/trades?view=market') },
   {
     path: 'trades',
-    title: 'Trade Ideas · FF Tinder',
+    title: 'Trades · FF Tinder',
     canActivate: [requireRoster],
     loadComponent: () => import('./features/trades/trades-page').then((m) => m.TradesPage),
   },
   {
     path: 'profile',
-    title: 'Profile · FF Tinder',
+    title: 'Me · FF Tinder',
     canActivate: [requireRoster],
     loadComponent: () => import('./features/profile/profile-page').then((m) => m.ProfilePage),
   },

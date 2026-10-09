@@ -36,7 +36,7 @@ Bradley–Terry model that uses the market value as its starting point:
   position, starting at 0 ± 6.
 - **Updating:** each answer nudges the winner up and the loser down, and shrinks their
   uncertainty. Surprising answers move things a lot: picking a lower-valued player over a
-  higher-valued one does. Expected answers barely move anything. A "too close to call" answer
+  higher-valued one does. Expected answers barely move anything. A "toss-up" answer
   pulls the two players toward each other.
 - **Rebuilt each time:** the whole answer history is replayed against today's market values
   whenever the app opens or anything changes, so nothing is lost when values update.
@@ -57,7 +57,7 @@ result:
 - The *personalization* percentage drops as answers age, so it shows how **current** your
   profile is, not just how many answers you've given.
 - A compared player "needs a refresh" once the average weight of their answers falls below 50%.
-  The Profile and comparison screens show how many players need one, and matchups favor those
+  The Me and Swipe screens show how many players need one, and matchups favor those
   players (the weekly check-in, see section 5).
 
 Answers recorded before market values were saved with each answer are still faded by age, but
@@ -90,21 +90,24 @@ of players gets a score, and the next matchup is drawn from the 10 best. Pairs s
 
 **Winner stays** (an option on the comparison screen, off by default): the player you pick stays
 for the next matchup against a new challenger, chosen the same way from pairs that include them. A
-player who wins 5 in a row retires, and "too close to call" also starts a fresh matchup.
+player who wins 5 in a row retires, and a toss-up also starts a fresh matchup.
 
 Players far apart in value are never paired (no Ja'Marr Chase vs. a bench WR), and recently shown
 players and repeated pairs are down-weighted. QBs are only matched against QBs, with at least one
 QB matchup in every 8.
 
-### 6. Trade targets and sell candidates
+### 6. Buy & sell
 
-- **Targets:** players not on your roster whose blended value is at least **1.5 points** above
+These are in the Trades tab under **Buy & sell**. Each player shows their position rank by your values
+next to the market's (e.g. "You WR8 · Market WR14") rather than raw value points.
+
+- **Buy:** players not on your roster whose blended value is at least **1.5 points** above
   market. They're ranked by the **best fair trade you could offer** for each: of all acceptable
   1-for-1s (the rules in section 7), the one with the highest edge, meaning (how far above
-  consensus you are on the target) − (how far above consensus you are on the player you'd send),
+  the market you are on the target) − (how far above the market you are on the player you'd send),
   minus any overpay. Each target shows that best offer. Targets with no fair offer on your roster
   come last, ordered by gap.
-- **Sell candidates:** your own players at least 1.5 points below market, biggest gap first.
+- **Sell:** your own players at least 1.5 points below market, biggest gap first.
 
 Players worth less than 3 are ignored. With *Only players I've compared* on, a player needs at
 least one direct comparison to appear. ([targets.ts](src/domain/targets.ts),
@@ -123,6 +126,10 @@ The app checks every pair of one player you own and one you don't
 
 Ideas are ranked by that edge, minus anything you'd overpay. Each incoming player appears at most
 twice and each of your players at most four times.
+
+**On the card:** instead of raw points, each trade shows a 1–5 **strength meter** from its score
+(Slight < 2, Decent 2+, Good 3.5+, Strong 5+, Great 7+) and one plain line: the player driving the
+deal and the price ("You're higher on Kyren Williams than the market · even price").
 
 **"I would never":** every suggestion (including league matches) has this button. It records an
 answer that you prefer the player you'd send over the one you'd receive. That answer counts as
@@ -187,7 +194,7 @@ Answers from every device are combined.
 With an MFL team linked, the Trades page lists every other team in your league with a count of
 fair offers. Pick one to open its **trade room** ([packages.ts](src/domain/packages.ts)):
 
-1. **Scout them:** a Compare session where every matchup is one of your players against one of
+1. **Scout them:** a Swipe session where every matchup is one of your players against one of
    theirs, with "Yours" and team-name tags on the cards. 12 matchups complete a scout; you can keep
    going.
 2. **Offers** from both real rosters, in four groups: **1 for 1**, **2 for 2**, **Consolidate**

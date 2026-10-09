@@ -22,15 +22,11 @@
         Unlink
       </button>
       <div class="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 border-t border-zinc-800/70 pt-2 text-xs text-zinc-400">
-        <span class="text-amber-200" aria-hidden="true">★</span>
+        <app-icon class="text-amber-300" [icon]="star" [size]="14" [filled]="true" />
         <span>{{ matchSummary() }}</span>
-        <app-help-tip label="team saving">
-          Your answers are saved to this team on the app's server, so picking the same team on any
-          device brings them back, and answers from every device are combined. Your player values
-          are also used to find trades that you and a leaguemate both want; leaguemates only see
-          those mutual matches. There are no logins yet, so anyone who picks this team can see and
-          change its answers.
-        </app-help-tip>
+        <p class="basis-full text-[11px] leading-snug text-zinc-500">
+          Answers save to this team, so anyone who picks it can see them. Leaguemates only see mutual matches.
+        </p>
       </div>
     </div>
   }
@@ -44,7 +40,7 @@
       <span class="block text-sm font-medium text-zinc-100">Import from MyFantasyLeague</span>
       <span class="block text-xs text-zinc-400">Find your league, pick your team, done.</span>
     </span>
-    <span class="text-emerald-400" aria-hidden="true">→</span>
+    <app-icon class="text-emerald-400" [icon]="arrow" [size]="18" />
   </button>
 }
 

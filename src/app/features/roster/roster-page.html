@@ -1,7 +1,4 @@
-<h1 class="text-xl font-semibold">My roster</h1>
-<p class="mt-1 text-sm text-zinc-400">
-  Import your team from your league, or add players yourself. An imported team's answers are saved to that team, so you can pick it up on any device.
-</p>
+<h1 class="text-xl font-semibold">Roster</h1>
 
 <app-mfl-import class="mt-5" />
 
@@ -50,9 +47,9 @@
     @if (valuation.roster().length > 0) {
       <a
         routerLink="/compare"
-        class="rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-emerald-400"
-        >Start comparing →</a
-      >
+        class="inline-flex items-center gap-1.5 rounded-md bg-emerald-500 px-3 py-1.5 text-sm font-medium text-zinc-950 hover:bg-emerald-400"
+        >Start swiping <app-icon [icon]="arrow" [size]="15"
+      /></a>
     }
   </div>
 
@@ -64,7 +61,7 @@
   }
 
   @for (group of groups(); track group.position) {
-    <h3 class="mt-5 mb-2 text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+    <h3 class="mt-5 mb-2 text-xs font-medium text-zinc-500">
       {{ group.position }}
     </h3>
     <ul class="divide-y divide-zinc-800/70 rounded-lg border border-zinc-800 bg-zinc-900/40">
@@ -81,57 +78,13 @@
               [attr.aria-label]="'Remove ' + row.player.name"
               (click)="store.removeFromRoster(row.player.id)"
             >
-              ✕
+              <app-icon [icon]="x" [size]="16" />
             </button>
           </span>
         </li>
       }
     </ul>
   } @empty {
-    <p class="mt-3 rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-sm text-zinc-500">
-      Search above to add your first player.
-    </p>
+    <app-empty-state class="mt-3">Search above to add your first player.</app-empty-state>
   }
-</section>
-
-<section id="format" class="mt-8" aria-labelledby="league-heading">
-  <h2 id="league-heading" class="text-sm font-medium text-zinc-300">League format</h2>
-  <p class="mt-1 text-xs text-zinc-500">
-    Picks which FantasyCalc market values to use. Only formats FantasyCalc publishes values for are
-    offered.
-  </p>
-  <div class="mt-3 space-y-3">
-    @for (group of formatGroups(); track group.label) {
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span class="w-16 text-xs text-zinc-400" [id]="'fmt-' + group.label">{{ group.label }}</span>
-        <div class="flex flex-wrap gap-1.5" role="radiogroup" [attr.aria-labelledby]="'fmt-' + group.label">
-          @for (o of group.options; track o.label) {
-            <button
-              type="button"
-              role="radio"
-              class="rounded-full border px-3 py-1.5 text-sm"
-              [class]="
-                o.selected
-                  ? 'border-emerald-500 bg-emerald-500/15 text-emerald-200'
-                  : 'border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
-              "
-              [attr.aria-checked]="o.selected"
-              (click)="store.updateSettings(o.patch)"
-            >
-              {{ o.label }}
-            </button>
-          }
-        </div>
-      </div>
-    }
-  </div>
-  @if (store.league(); as link) {
-    <p class="mt-3 text-xs text-zinc-500">
-      Set from your MyFantasyLeague import; change it here if anything's off.
-    </p>
-  }
-  <p class="mt-2 text-xs text-zinc-500">
-    Dynasty uses long-term values (and covers more young players) instead of rest-of-season values.
-    Trade ideas ignore your lineup either way.
-  </p>
 </section>

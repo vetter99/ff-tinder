@@ -1,9 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { SCORING_LABELS, SUPPORTED_FORMATS } from '../../../domain/format';
-import { LeagueSettings, Player, POSITIONS } from '../../../domain/types';
+import { ArrowRight, X } from 'lucide';
+import { Player, POSITIONS } from '../../../domain/types';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
+import { EmptyState } from '../../shared/empty-state';
+import { Icon } from '../../shared/icon';
 import { PlayerLine } from '../../shared/player-line';
 import { MflImport } from './mfl-import';
 
@@ -15,7 +17,7 @@ const normalize = (s: string) =>
 
 @Component({
   selector: 'app-roster-page',
-  imports: [MflImport, PlayerLine, RouterLink],
+  imports: [EmptyState, Icon, MflImport, PlayerLine, RouterLink],
   templateUrl: './roster-page.html',
 })
 export class RosterPage {
@@ -23,42 +25,8 @@ export class RosterPage {
   protected readonly valuation = inject(ValuationService);
 
   protected readonly query = signal('');
-  /** Every choice FantasyCalc supports, grouped for tap-to-select buttons. */
-  protected readonly formatGroups = computed(() => {
-    const s = this.store.settings();
-    const option = (label: string, patch: Partial<LeagueSettings>, selected: boolean) => ({
-      label,
-      patch,
-      selected,
-    });
-    return [
-      {
-        label: 'Type',
-        options: [
-          option('Redraft', { dynasty: false }, !s.dynasty),
-          option('Dynasty', { dynasty: true }, s.dynasty),
-        ],
-      },
-      {
-        label: 'Teams',
-        options: SUPPORTED_FORMATS.teams.map((n) => option(String(n), { teams: n }, s.teams === n)),
-      },
-      {
-        label: 'Scoring',
-        options: ([1, 0.5, 0] as const).map((ppr) =>
-          option(SCORING_LABELS[ppr], { ppr }, s.ppr === ppr),
-        ),
-      },
-      {
-        label: 'QBs',
-        options: [
-          option('1 QB', { superflex: false }, !s.superflex),
-          option('Superflex', { superflex: true }, s.superflex),
-        ],
-      },
-    ];
-  });
-
+  protected readonly arrow = ArrowRight;
+  protected readonly x = X;
   protected readonly results = computed(() => {
     const tokens = normalize(this.query()).split(/\s+/).filter(Boolean);
     if (tokens.length === 0) return [];
@@ -95,5 +63,4 @@ export class RosterPage {
     const first = this.results()[0];
     if (first) this.add(first);
   }
-
 }

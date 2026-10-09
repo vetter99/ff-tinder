@@ -2,7 +2,7 @@ import { scorePairs, selectNextPair } from './active-learning';
 import { emptyModel, fitModel, personalValues, PersonalValue } from './preference';
 import { findValueGaps } from './targets';
 import { makePlayer, makePlayers, seededRandom } from './testing';
-import { allOneForOneIdeas, generateOneForOne, rankTargets, TRADE_RULES, vetoedTrades, vetoKey } from './trades';
+import { allOneForOneIdeas, generateOneForOne, rankTargets, TRADE_RULES, tradeSummary, vetoedTrades, vetoKey } from './trades';
 import { Comparison, Player, PlayerId } from './types';
 
 function valuesWith(players: Player[], gaps: Record<PlayerId, number>): Map<PlayerId, PersonalValue> {
@@ -227,5 +227,24 @@ describe('"I would never" vetoes', () => {
   it('counts as a stronger answer than an ordinary pick', () => {
     const offset = (c: Comparison) => fitModel([c], byId, { positionLean: false }).players.get('mine')!.mean;
     expect(offset(veto(true))).toBeGreaterThan(offset(veto(false)) * 1.3);
+  });
+});
+
+describe('tradeSummary', () => {
+  const a = makePlayer('a', 'WR', 50);
+  const b = makePlayer('b', 'RB', 50);
+  const gaps: Record<string, number> = { a: -1, b: 3 };
+  const gap = (p: Player) => gaps[p.id] ?? 0;
+
+  it('names the player driving the deal and the price', () => {
+    expect(tradeSummary([a], [b], gap, 0.01)).toBe("You're higher on RB b than the market · even price");
+    expect(tradeSummary([a], [b], gap, -0.07)).toBe("You're higher on RB b than the market · you pay 7% more");
+    expect(tradeSummary([a], [b], () => 0, 0.04)).toBe('You like this side more than the market does · you get 4% more value');
+  });
+
+  it('falls back to the player you are lower on', () => {
+    expect(tradeSummary([a], [b], (p) => (p.id === 'a' ? -4 : 0.2), 0)).toBe(
+      "You're lower on WR a than the market · even price",
+    );
   });
 });

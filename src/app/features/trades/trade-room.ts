@@ -1,5 +1,6 @@
 import { Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Check, Copy, Search, Share2 } from 'lucide';
 import { formatSalaryShort } from '../../../domain/league-import';
 import { PackageGroup, TradePackage } from '../../../domain/packages';
 import { buildPitch } from '../../../domain/pitch';
@@ -8,16 +9,18 @@ import { Player } from '../../../domain/types';
 import { LeagueService, LeagueTeam } from '../../core/league.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
+import { EmptyState } from '../../shared/empty-state';
+import { Icon } from '../../shared/icon';
 import { TradeCard } from './trade-card';
 
 /** Offers already ticked when a team is opened. */
 const PRESELECTED = 3;
 
 const GROUPS: { group: PackageGroup; title: string; hint: string }[] = [
-  { group: 'one-for-one', title: '1 for 1', hint: 'Straight swaps.' },
-  { group: 'two-for-two', title: '2 for 2', hint: 'Two of yours for two of theirs.' },
-  { group: 'consolidate', title: 'Consolidate', hint: 'Send more players than you get back.' },
-  { group: 'spread', title: 'Add depth', hint: 'Turn one of yours into more of theirs.' },
+  { group: 'one-for-one', title: '1 for 1', hint: '' },
+  { group: 'two-for-two', title: '2 for 2', hint: '' },
+  { group: 'consolidate', title: 'Consolidate', hint: '2 for 1, 3 for 2' },
+  { group: 'spread', title: 'Add depth', hint: '1 for 2, 2 for 3' },
 ];
 
 /**
@@ -26,7 +29,7 @@ const GROUPS: { group: PackageGroup; title: string; hint: string }[] = [
  */
 @Component({
   selector: 'app-trade-room',
-  imports: [RouterLink, TradeCard],
+  imports: [EmptyState, Icon, RouterLink, TradeCard],
   template: `
     <h2 class="truncate text-lg font-semibold text-zinc-50">Trade with {{ team().name }}</h2>
 
@@ -36,19 +39,12 @@ const GROUPS: { group: PackageGroup; title: string; hint: string }[] = [
     >
       <div class="flex items-center justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-zinc-100">
-            @if (scouted() >= goal) {
-              ✅ Scouted · {{ scouted() }} matchups
-            } @else {
-              🔍 Scout {{ team().name }}
-            }
+          <p class="flex items-center gap-1.5 text-sm font-semibold text-zinc-100">
+            <app-icon [icon]="scouted() >= goal ? check : search" [size]="16" />
+            {{ scouted() >= goal ? 'Scouted' : 'Scout ' + team().name }}
           </p>
-          <p class="mt-0.5 text-xs text-zinc-400">
-            @if (scouted() >= goal) {
-              Keep going anytime to sharpen these offers.
-            } @else {
-              Swipe your players against theirs, then see your offers. {{ scouted() }}/{{ goal }}
-            }
+          <p class="mt-0.5 text-xs text-zinc-400 tabular-nums">
+            {{ scouted() >= goal ? scouted() + ' matchups. More sharpens these offers.' : 'Your players vs. theirs · ' + scouted() + '/' + goal }}
           </p>
         </div>
         <a
@@ -68,7 +64,7 @@ const GROUPS: { group: PackageGroup; title: string; hint: string }[] = [
     @for (g of groups(); track g.group) {
       <section class="mt-6" [attr.aria-labelledby]="'group-' + g.group">
         <h3 [id]="'group-' + g.group" class="text-sm font-semibold text-zinc-200">
-          {{ g.title }} <span class="font-normal text-zinc-500">· {{ g.hint }}</span>
+          {{ g.title }} <span class="font-normal text-zinc-500">{{ g.hint }}</span>
         </h3>
         <ul class="mt-2 space-y-4">
           @for (t of g.packages; track key(t)) {
@@ -89,13 +85,11 @@ const GROUPS: { group: PackageGroup; title: string; hint: string }[] = [
         </ul>
       </section>
     } @empty {
-      <p class="mt-6 rounded-lg border border-dashed border-zinc-800 px-4 py-6 text-center text-sm text-zinc-500">
+      <app-empty-state class="mt-6">
         No fair trades with {{ team().name }} yet.
-        <a [routerLink]="['/compare']" [queryParams]="{ scout: team().id }" class="text-sky-300 hover:underline"
-          >Scout their roster</a
-        >
+        <a [routerLink]="['/compare']" [queryParams]="{ scout: team().id }" class="text-sky-300 hover:underline">Scout them</a>
         to find some.
-      </p>
+      </app-empty-state>
     }
 
     @if (offers().length > 0) {
@@ -118,18 +112,19 @@ const GROUPS: { group: PackageGroup; title: string; hint: string }[] = [
           <div class="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              class="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
+              class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
               (click)="copy()"
             >
-              {{ copied() ? 'Copied ✓' : 'Copy message' }}
+              <app-icon [icon]="copied() ? check : copyIcon" [size]="15" />
+              {{ copied() ? 'Copied' : 'Copy message' }}
             </button>
             @if (canShare) {
               <button
                 type="button"
-                class="rounded-full border border-emerald-500/50 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/10"
+                class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/50 px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/10"
                 (click)="share()"
               >
-                Share…
+                <app-icon [icon]="shareIcon" [size]="15" /> Share
               </button>
             }
             <span class="text-xs text-zinc-500" role="status">{{
@@ -148,6 +143,10 @@ export class TradeRoom {
   private readonly league = inject(LeagueService);
   private readonly store = inject(StoreService);
   protected readonly goal = SCOUT_GOAL;
+  protected readonly check = Check;
+  protected readonly search = Search;
+  protected readonly copyIcon = Copy;
+  protected readonly shareIcon = Share2;
   protected readonly Math = Math;
 
   protected readonly scouted = computed(() =>

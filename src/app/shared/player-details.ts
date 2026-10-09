@@ -5,13 +5,15 @@ import { LeagueSettings, Player } from '../../domain/types';
 import { LeagueService } from '../core/league.service';
 import { InfoState } from '../core/player-info.service';
 import { relativeTime } from './format';
+import { X } from 'lucide';
+import { Icon } from './icon';
 import { PlayerAvatar } from './player-avatar';
 import { PositionBadge } from './position-badge';
 
 /** Bottom sheet with a player's injury status, this season's weekly points, stats and news. */
 @Component({
   selector: 'app-player-details',
-  imports: [PlayerAvatar, PositionBadge],
+  imports: [Icon, PlayerAvatar, PositionBadge],
   template: `
     <div class="fixed inset-0 z-50 bg-black/60" (click)="closed.emit()" aria-hidden="true"></div>
     <section
@@ -42,7 +44,7 @@ import { PositionBadge } from './position-badge';
           aria-label="Close"
           (click)="closed.emit()"
         >
-          ✕
+          <app-icon [icon]="x" [size]="18" />
         </button>
       </div>
 
@@ -155,6 +157,7 @@ export class PlayerDetails {
   readonly closed = output<void>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('close');
   private readonly league = inject(LeagueService);
+  protected readonly x = X;
 
   /** Owner, salary and contract in the linked league. */
   protected readonly leagueInfo = computed(() => this.league.info(this.player()));

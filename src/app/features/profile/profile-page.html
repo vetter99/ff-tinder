@@ -1,14 +1,9 @@
-<h1 class="text-xl font-semibold">Preference profile</h1>
-<p class="mt-1 text-sm text-zinc-400">What your answers say about how you value players.</p>
+<h1 class="text-xl font-semibold">Me</h1>
 
-<dl class="mt-6 grid grid-cols-3 gap-3">
+<dl class="mt-6 grid grid-cols-2 gap-3">
   <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-    <dt class="text-xs text-zinc-500">Comparisons</dt>
+    <dt class="text-xs text-zinc-500">Answers</dt>
     <dd class="mt-1 text-2xl font-semibold tabular-nums">{{ stats().comparisons }}</dd>
-  </div>
-  <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-    <dt class="text-xs text-zinc-500">Recent informative</dt>
-    <dd class="mt-1 text-2xl font-semibold tabular-nums">{{ stats().informative.toFixed(1) }}</dd>
   </div>
   <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
     <dt class="text-xs text-zinc-500">Personalization</dt>
@@ -16,21 +11,19 @@
   </div>
 </dl>
 <p class="mt-2 text-xs text-zinc-500">
-  Your values are currently {{ 100 - stats().personalShare }}% consensus and
-  {{ stats().personalShare }}% your own answers (personal share caps at 50%). Easy answers count less
-  than close calls, and answers fade over time: each one counts half as much after 3 weeks.
+  Your values: {{ 100 - stats().personalShare }}% market, {{ stats().personalShare }}% your answers
+  (up to 50%). Answers fade by half every 3 weeks.
 </p>
 @if (valuation.refreshCount() > 0) {
   <p class="mt-3 rounded-md bg-sky-950/40 px-3 py-2 text-xs text-sky-200">
-    {{ valuation.refreshCount() }} player{{ valuation.refreshCount() === 1 ? '' : 's' }} you've
-    compared {{ valuation.refreshCount() === 1 ? 'needs' : 'need' }} a refresh: your answers about
-    them are old or their market value has moved a lot. A few
-    <a routerLink="/compare" class="text-sky-300 underline">comparisons</a> will update them.
+    {{ valuation.refreshCount() }} player{{ valuation.refreshCount() === 1 ? '' : 's' }}
+    {{ valuation.refreshCount() === 1 ? 'needs' : 'need' }} a refresh since their value moved or your
+    answers got old. <a routerLink="/compare" class="text-sky-300 underline">Swipe a few</a> to update.
   </p>
 }
 
 <section class="mt-8" aria-labelledby="settings-heading">
-  <h2 id="settings-heading" class="text-sm font-medium text-zinc-300">How suggestions are made</h2>
+  <h2 id="settings-heading" class="text-sm font-medium text-zinc-300">Settings</h2>
   <ul class="mt-3 divide-y divide-zinc-800/70 rounded-lg border border-zinc-800 bg-zinc-900/40">
     <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-3">
       <label class="flex flex-1 items-center gap-3 text-sm text-zinc-200">
@@ -60,7 +53,7 @@
         Only players I've compared
       </label>
       <app-help-tip label="only players I've compared">
-        When on, Targets, Trade Ideas and the higher/lower lists only include players who have
+        When on, Buy & sell, trade ideas and the higher/lower lists only include players who have
         appeared in at least one of your matchups (for a trade, at least one of the two players). That
         way every suggestion traces back to an answer you gave about that player. When off, suggestions
         can also come from your position lean or from small knock-on effects.
@@ -91,14 +84,22 @@
 </section>
 }
 
+<section class="mt-8" aria-labelledby="format-heading">
+  <div class="flex items-baseline justify-between gap-3">
+    <h2 id="format-heading" class="text-sm font-medium text-zinc-300">League format</h2>
+    <p class="text-xs text-zinc-500">{{ formatName() }}</p>
+  </div>
+  <app-league-format class="mt-3" />
+</section>
+
 <section class="mt-8" aria-labelledby="higher-heading">
-  <h2 id="higher-heading" class="text-sm font-medium text-zinc-300">You're higher than consensus on</h2>
-  <app-gap-list class="mt-2" [gaps]="valuation.higherThanConsensus()" empty="Nobody yet." />
+  <h2 id="higher-heading" class="text-sm font-medium text-zinc-300">You rank higher than the market</h2>
+  <app-gap-list class="mt-2" [gaps]="valuation.higherThanMarket()" empty="Nobody yet." />
 </section>
 
 <section class="mt-8" aria-labelledby="lower-heading">
-  <h2 id="lower-heading" class="text-sm font-medium text-zinc-300">You're lower than consensus on</h2>
-  <app-gap-list class="mt-2" [gaps]="valuation.lowerThanConsensus()" empty="Nobody yet." />
+  <h2 id="lower-heading" class="text-sm font-medium text-zinc-300">You rank lower than the market</h2>
+  <app-gap-list class="mt-2" [gaps]="valuation.lowerThanMarket()" empty="Nobody yet." />
 </section>
 
 <section class="mt-8" aria-labelledby="chart-heading">
@@ -118,10 +119,7 @@
       }
     </div>
   </div>
-  <p class="mt-1 text-xs text-zinc-500">
-    Every player ranked by your value (market blended with your answers, 0–100). ▲/▼ shows how far
-    you've moved a player from their market rank.
-  </p>
+  <p class="mt-1 text-xs text-zinc-500">Every player by your value (0–100), and how far you've moved them from their market rank.</p>
   <div class="mt-3 overflow-hidden rounded-lg border border-zinc-800">
     <table class="w-full text-sm">
       <thead class="bg-zinc-900 text-left text-xs text-zinc-500">

@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { formatLabel } from '../../../domain/format';
 import { valueChart } from '../../../domain/value-chart';
 import { ModelOptions, Position, POSITIONS } from '../../../domain/types';
 import { RankingsService } from '../../core/rankings.service';
@@ -10,12 +11,13 @@ import { GapList } from '../../shared/gap-list';
 import { HelpTip } from '../../shared/help-tip';
 import { PlayerLine } from '../../shared/player-line';
 import { PositionBadge } from '../../shared/position-badge';
+import { LeagueFormat } from './league-format';
 
 const CHART_PREVIEW_ROWS = 50;
 
 @Component({
   selector: 'app-profile-page',
-  imports: [GapList, HelpTip, PlayerLine, PositionBadge, RouterLink],
+  imports: [GapList, HelpTip, LeagueFormat, PlayerLine, PositionBadge, RouterLink],
   templateUrl: './profile-page.html',
 })
 export class ProfilePage {
@@ -27,7 +29,6 @@ export class ProfilePage {
 
   protected readonly stats = computed(() => ({
     comparisons: this.store.comparisons().length,
-    informative: this.valuation.model().evidence,
     personalization: Math.round(this.valuation.confidence() * 100),
     personalShare: Math.round(this.valuation.weight() * 100),
   }));
@@ -53,6 +54,8 @@ export class ProfilePage {
   );
   protected readonly chartHidden = computed(() => this.chart().length - this.chartRows().length);
 
+  protected readonly formatName = computed(() => formatLabel(this.store.settings()));
+
   protected readonly dataLabel = computed(() => {
     const at = this.rankings.fetchedAt();
     return at ? relativeTime(at, Date.now()) : '—';
@@ -65,7 +68,7 @@ export class ProfilePage {
   protected rankShift(row: { yourRank: number; marketRank: number }): string {
     const d = row.marketRank - row.yourRank;
     if (d === 0) return '—';
-    return d > 0 ? `▲${d}` : `▼${-d}`;
+    return d > 0 ? `+${d}` : `−${-d}`;
   }
 
   protected exportData(): void {
