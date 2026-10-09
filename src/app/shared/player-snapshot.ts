@@ -20,18 +20,18 @@ import { relativeTime } from './format';
             >
           }
           @if (season().pointsPerGame !== null) {
-            <span class="rounded bg-white/10 px-1.5 py-0.5 text-zinc-200 tabular-nums">
+            <span class="rounded bg-zinc-50/10 px-1.5 py-0.5 text-zinc-200 tabular-nums">
               {{ season().pointsPerGame!.toFixed(1) }} ppg
             </span>
           }
           @if (season().last; as last) {
-            <span class="rounded bg-white/10 px-1.5 py-0.5 text-zinc-300 tabular-nums">
+            <span class="rounded bg-zinc-50/10 px-1.5 py-0.5 text-zinc-300 tabular-nums">
               Wk {{ last.week }}: {{ last.points.toFixed(1) }}
             </span>
           }
         }
         @case ('loading') {
-          <span class="h-5 w-28 animate-pulse rounded bg-white/10" aria-label="Loading player info"></span>
+          <span class="h-5 w-28 animate-pulse rounded bg-zinc-50/10" aria-label="Loading player info"></span>
         }
       }
     </span>

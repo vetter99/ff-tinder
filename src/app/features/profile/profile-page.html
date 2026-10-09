@@ -84,6 +84,24 @@
 </section>
 }
 
+<section class="mt-8" aria-labelledby="look-heading">
+  <h2 id="look-heading" class="text-sm font-medium text-zinc-300">Look</h2>
+  <div class="mt-3 grid grid-cols-3 rounded-lg bg-zinc-900 p-1 text-sm font-medium" role="radiogroup" aria-labelledby="look-heading">
+    @for (t of themes; track t.value) {
+      <button
+        type="button"
+        role="radio"
+        class="rounded-md py-1.5"
+        [class]="theme.preference() === t.value ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-400 hover:text-zinc-100'"
+        [attr.aria-checked]="theme.preference() === t.value"
+        (click)="theme.set(t.value)"
+      >
+        {{ t.label }}
+      </button>
+    }
+  </div>
+</section>
+
 <section class="mt-8" aria-labelledby="format-heading">
   <div class="flex items-baseline justify-between gap-3">
     <h2 id="format-heading" class="text-sm font-medium text-zinc-300">League format</h2>

@@ -1,11 +1,12 @@
-# FF Tinder
+# Trade Bait
 
 A browser-based fantasy football trade finder. You answer quick "who would you rather own?"
-matchups. The app learns how your valuations differ from the market and suggests 1-for-1 trades
-you'd like that are still fair by consensus value.
+matchups. The app learns how your valuations differ from the market and suggests trades you'd like
+that are still fair by market value.
 
-It's single-player for now: there are no accounts, and everything you enter stays in your browser.
-You can import your roster from a public MyFantasyLeague league or add players by hand.
+Import your team from a public MyFantasyLeague league (or add players by hand). A linked team's
+answers are saved to that team, so they follow you to any device, and leaguemates on the app get
+gold "match" cards for trades you both want. There are no logins yet.
 
 ## Scoring algorithm
 
@@ -250,7 +251,7 @@ pickups.
 - A linked team saves its answers to the server so they follow you to any device (see
   [section 9](#9-your-answers-follow-your-team)), and joins league matching (see
   [section 8](#8-league-matches-both-managers-want-it)). The linked-league card shows how many
-  leaguemates are on FF Tinder.
+  leaguemates are on Trade Bait.
 
 ## Player info on cards
 
@@ -274,6 +275,19 @@ values for them, so saved or imported settings are mapped to the nearest support
 import sets team count, superflex, and scoring (from the league's points-per-catch rule)
 automatically. The header shows the current format, and tapping it opens these settings.
 
+## Look
+
+Two themes, picked under **Me → Look**, saved per browser. Sports book is the default:
+
+- **Sports book:** light grey page, white cards, electric-blue accent, Barlow type (Google Fonts).
+- **Dark:** the original dark look.
+
+Components are written with the dark theme's Tailwind classes. The sports-book theme
+(`[data-theme='book']` in [styles.css](src/styles.css)) re-points Tailwind's colour variables:
+dark neutrals become light ones (page grey, white cards, dark text), and each accent shade maps to
+one with similar contrast on a light background (emerald becomes blue). `index.html` applies the
+saved theme before the first paint.
+
 ## Data and fallbacks
 
 Player values load from the first source that works, in this order:
@@ -290,6 +304,11 @@ published API terms, so check with them before any commercial use.
 ## Deployment
 
 Hosted on Cloudflare Workers (static assets). Every push to `main` redeploys it.
+
+The app was renamed from "FF Tinder" to Trade Bait. Internal names still say `ff-tinder` on purpose:
+the Worker and D1 database in `wrangler.jsonc` (renaming the Worker would deploy a new one at a new
+URL with an empty database), the Angular project and build folder, and the browser storage keys
+(renaming them would lose everyone's saved answers).
 
 | Setting | Value |
 |---|---|

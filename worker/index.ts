@@ -43,7 +43,7 @@ type Ctx = { waitUntil(p: Promise<unknown>): void };
 
 const MFL_API = 'https://api.myfantasyleague.com';
 /** MFL asks API clients to identify themselves. */
-const USER_AGENT = 'FF-Tinder/1.0';
+const USER_AGENT = 'TradeBait/1.0';
 const LEAGUE_TTL_S = 300;
 const PLAYERS_TTL_S = 86_400;
 const NEWS_TTL_S = 1_800;
@@ -145,7 +145,7 @@ async function syncTeam(db: D1Database, ctx: Ctx, body: Record<string, unknown>)
   if (!log) throw new HttpError(400, 'Invalid answers');
   const now = Date.now();
 
-  const lg = await cachedData(`https://ff-tinder.internal/league/${leagueId}`, ctx, LEAGUE_TTL_S, () =>
+  const lg = await cachedData(`https://trade-bait.internal/league/${leagueId}`, ctx, LEAGUE_TTL_S, () =>
     league(leagueId),
   );
   const names = new Map(lg.franchises.map((f) => [f.id, f.name]));

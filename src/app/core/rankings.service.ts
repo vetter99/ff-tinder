@@ -4,6 +4,7 @@ import { LeagueSettings, Player } from '../../domain/types';
 import { fantasyCalcUrl, parseFantasyCalc } from './fantasycalc';
 import { readJson, writeJson } from './storage';
 
+// Original app name, kept so existing caches still load.
 const CACHE_KEY = 'ff-tinder:rankings';
 /** Cached data younger than this is used without refetching. */
 const FRESH_MS = 6 * 60 * 60 * 1000;

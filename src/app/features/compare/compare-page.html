@@ -18,7 +18,7 @@
         </p>
         <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
           <div
-            class="h-full rounded-full bg-linear-to-r from-amber-400 to-emerald-400 transition-all duration-300"
+            class="h-full rounded-full bg-linear-to-r from-emerald-600 to-emerald-400 transition-all duration-300"
             [style.width.%]="level().progress * 100"
           ></div>
         </div>
@@ -139,7 +139,7 @@
         >
           <span
             aria-hidden="true"
-            class="pointer-events-none absolute -right-2 -bottom-6 text-[7rem] leading-none font-black tracking-tighter text-white/6 sm:text-[9rem]"
+            class="pointer-events-none absolute -right-2 -bottom-6 text-[7rem] leading-none font-black tracking-tighter text-zinc-50/6 sm:text-[9rem]"
             >{{ player.team ?? '' }}</span
           >
           @if (state === 'chosen') {
@@ -174,7 +174,7 @@
           } @else if (state === 'idle') {
             <button
               type="button"
-              class="absolute top-3 left-3 z-10 flex size-8 items-center justify-center rounded-full border border-white/15 bg-black/30 text-sm font-semibold text-zinc-200 hover:bg-black/50 focus-visible:outline-2 focus-visible:outline-emerald-400"
+              class="absolute top-3 left-3 z-10 flex size-8 items-center justify-center rounded-full border border-zinc-50/15 bg-zinc-950/40 text-sm font-semibold text-zinc-200 hover:bg-zinc-950/60 focus-visible:outline-2 focus-visible:outline-emerald-400"
               [attr.aria-label]="player.name + ' stats and news'"
               (pointerdown)="$event.stopPropagation()"
               (pointerup)="$event.stopPropagation()"
@@ -188,7 +188,7 @@
           <span class="card-body pointer-events-none flex max-w-full flex-col items-center sm:gap-1">
             <app-player-avatar [player]="player" [size]="88" />
             <span class="card-text flex min-w-0 flex-col items-center">
-            <span class="card-name mt-2 text-2xl leading-tight font-bold text-white sm:mt-4 sm:text-3xl">{{
+            <span class="card-name mt-2 text-2xl leading-tight font-bold text-zinc-50 sm:mt-4 sm:text-3xl">{{
               player.name
             }}</span>
             <span class="mt-2 flex items-center gap-2 text-sm text-zinc-300">

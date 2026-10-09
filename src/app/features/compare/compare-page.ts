@@ -517,6 +517,7 @@ export class ComparePage {
 
   protected cardBackground(player: Player): string {
     const color = teamColor(player.team);
-    return `radial-gradient(120% 80% at 50% 0%, ${color}88, transparent 60%), linear-gradient(to top, #18181b, #1f1f23)`;
+    // --card-tint and --card-base come from the theme (styles.css).
+    return `radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, ${color} var(--card-tint), transparent), transparent 60%), var(--card-base)`;
   }
 }

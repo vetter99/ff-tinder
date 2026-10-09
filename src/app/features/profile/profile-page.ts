@@ -11,6 +11,7 @@ import { GapList } from '../../shared/gap-list';
 import { HelpTip } from '../../shared/help-tip';
 import { PlayerLine } from '../../shared/player-line';
 import { PositionBadge } from '../../shared/position-badge';
+import { ThemeService } from '../../core/theme.service';
 import { LeagueFormat } from './league-format';
 
 const CHART_PREVIEW_ROWS = 50;
@@ -54,6 +55,13 @@ export class ProfilePage {
   );
   protected readonly chartHidden = computed(() => this.chart().length - this.chartRows().length);
 
+  protected readonly theme = inject(ThemeService);
+  protected readonly themes = [
+    { value: 'light' as const, label: 'Light' },
+    { value: 'dark' as const, label: 'Dark' },
+    { value: 'system' as const, label: 'System' },
+  ];
+
   protected readonly formatName = computed(() => formatLabel(this.store.settings()));
 
   protected readonly dataLabel = computed(() => {
@@ -76,7 +84,7 @@ export class ProfilePage {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'ff-tinder-profile.json';
+    a.download = 'trade-bait-profile.json';
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -89,7 +97,7 @@ export class ProfilePage {
       this.store.importJson(await file.text());
       this.message.set('Profile imported.');
     } catch {
-      this.message.set("That file isn't a valid FF Tinder export.");
+      this.message.set("That file isn't a valid Trade Bait export.");
     }
   }
 

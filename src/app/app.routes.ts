@@ -13,12 +13,12 @@ export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: () => (hasRoster() ? 'compare' : 'roster') },
   {
     path: 'roster',
-    title: 'Roster · FF Tinder',
+    title: 'Roster · Trade Bait',
     loadComponent: () => import('./features/roster/roster-page').then((m) => m.RosterPage),
   },
   {
     path: 'compare',
-    title: 'Swipe · FF Tinder',
+    title: 'Swipe · Trade Bait',
     canActivate: [requireRoster],
     loadComponent: () => import('./features/compare/compare-page').then((m) => m.ComparePage),
   },
@@ -26,13 +26,13 @@ export const routes: Routes = [
   { path: 'targets', redirectTo: () => inject(Router).parseUrl('/trades?view=market') },
   {
     path: 'trades',
-    title: 'Trades · FF Tinder',
+    title: 'Trades · Trade Bait',
     canActivate: [requireRoster],
     loadComponent: () => import('./features/trades/trades-page').then((m) => m.TradesPage),
   },
   {
     path: 'profile',
-    title: 'Me · FF Tinder',
+    title: 'Me · Trade Bait',
     canActivate: [requireRoster],
     loadComponent: () => import('./features/profile/profile-page').then((m) => m.ProfilePage),
   },

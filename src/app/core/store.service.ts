@@ -12,6 +12,7 @@ import { LeagueLink } from '../../domain/league-import';
 import { ComparisonLog, mergeLogs, sameLog, teamKey } from '../../domain/team-sync';
 import { readJson, removeKey, writeJson } from './storage';
 
+// Keeps the app's original name so existing saved data still loads after the rename.
 const STORAGE_KEY = 'ff-tinder:state';
 const SCHEMA_VERSION = 1;
 

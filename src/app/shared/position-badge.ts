@@ -3,7 +3,7 @@ import { Position } from '../../domain/types';
 
 const CLASSES: Record<Position, string> = {
   QB: 'bg-rose-500/15 text-rose-300',
-  RB: 'bg-emerald-500/15 text-emerald-300',
+  RB: 'bg-green-500/15 text-green-300',
   WR: 'bg-sky-500/15 text-sky-300',
   TE: 'bg-amber-500/15 text-amber-300',
 };

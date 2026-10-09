@@ -2,6 +2,7 @@ import { Component, computed, effect, inject, untracked } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { TeamSyncService } from './core/team-sync.service';
 import { RankingsService } from './core/rankings.service';
+import { ThemeService } from './core/theme.service';
 import { StoreService } from './core/store.service';
 import { ArrowLeftRight, Layers, User, Users } from 'lucide';
 import { Icon } from './shared/icon';
@@ -17,6 +18,8 @@ export class App {
   protected readonly rankings = inject(RankingsService);
   /** Created at startup so the linked team's answers and matches stay in sync from any page. */
   private readonly teamSync = inject(TeamSyncService);
+  /** Created at startup so a "System" look follows the device's light/dark setting. */
+  private readonly theme = inject(ThemeService);
 
   protected readonly nav = [
     { path: '/roster', label: 'Roster', icon: Users, needsRoster: false },
