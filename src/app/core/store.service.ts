@@ -9,6 +9,7 @@ import {
 } from '../../domain/types';
 import { normalizeSettings } from '../../domain/format';
 import { LeagueLink } from '../../domain/league-import';
+import { ComparisonLog, mergeLogs, sameLog, teamKey } from '../../domain/team-sync';
 import { readJson, removeKey, writeJson } from './storage';
 
 const STORAGE_KEY = 'ff-tinder:state';
@@ -22,14 +23,13 @@ export interface PersistedState {
   /** Set when the roster was imported from a league site. */
   league: LeagueLink | null;
   comparisons: Comparison[];
-  /**
-   * Random id that claims the linked league team for league matching. Moves with Export/Import so
-   * another device can take over the claim; kept on reset so a reset can't lock you out of it.
-   */
-  deviceToken: string;
+  /** Ids of removed comparisons, so syncing with the team's saved answers doesn't restore them. */
+  deletedComparisons: string[];
+  /** The league team (see `teamKey`) whose saved answers these comparisons were merged with. */
+  syncedTeam: string | null;
 }
 
-function emptyState(deviceToken: string = crypto.randomUUID()): PersistedState {
+function emptyState(): PersistedState {
   return {
     schemaVersion: SCHEMA_VERSION,
     settings: DEFAULT_SETTINGS,
@@ -37,7 +37,8 @@ function emptyState(deviceToken: string = crypto.randomUUID()): PersistedState {
     roster: [],
     league: null,
     comparisons: [],
-    deviceToken,
+    deletedComparisons: [],
+    syncedTeam: null,
   };
 }
 
@@ -51,7 +52,8 @@ function migrate(raw: Partial<PersistedState> | null): PersistedState {
     roster: Array.isArray(raw.roster) ? raw.roster : [],
     league: raw.league ?? null,
     comparisons: Array.isArray(raw.comparisons) ? raw.comparisons : [],
-    deviceToken: typeof raw.deviceToken === 'string' ? raw.deviceToken : crypto.randomUUID(),
+    deletedComparisons: Array.isArray(raw.deletedComparisons) ? raw.deletedComparisons : [],
+    syncedTeam: typeof raw.syncedTeam === 'string' ? raw.syncedTeam : null,
   };
 }
 
@@ -66,7 +68,11 @@ export class StoreService {
   readonly rosterIds = computed(() => new Set(this.state().roster));
   readonly league = computed(() => this.state().league);
   readonly comparisons = computed(() => this.state().comparisons);
-  readonly deviceToken = computed(() => this.state().deviceToken);
+  /** Comparisons plus deletions, as synced with the linked team's saved answers. */
+  readonly log = computed<ComparisonLog>(() => ({
+    comparisons: this.state().comparisons,
+    deleted: this.state().deletedComparisons,
+  }));
 
   constructor() {
     effect(() => writeJson(STORAGE_KEY, this.state()));
@@ -85,13 +91,31 @@ export class StoreService {
   }
 
   /** Replaces the roster with an imported one and remembers where it came from. */
+  /**
+   * Replaces the roster with an imported one and remembers where it came from. Switching to a
+   * different team than the answers were synced with starts from that team's saved answers instead.
+   */
   importRoster(ids: PlayerId[], league: LeagueLink, settings: Partial<LeagueSettings>): void {
-    this.state.update((s) => ({
-      ...s,
-      roster: [...new Set(ids)],
-      league,
-      settings: normalizeSettings({ ...s.settings, ...settings }),
-    }));
+    this.state.update((s) => {
+      const otherTeam = s.syncedTeam !== null && s.syncedTeam !== teamKey(league.leagueId, league.franchiseId);
+      return {
+        ...s,
+        roster: [...new Set(ids)],
+        league,
+        settings: normalizeSettings({ ...s.settings, ...settings }),
+        ...(otherTeam ? { comparisons: [], deletedComparisons: [], syncedTeam: null } : {}),
+      };
+    });
+  }
+
+  /** Merges the team's saved answers into the local ones (new answers made meanwhile are kept). */
+  mergeTeamLog(team: string, remote: ComparisonLog): void {
+    this.state.update((s) => {
+      const local = { comparisons: s.comparisons, deleted: s.deletedComparisons };
+      const merged = mergeLogs(local, remote);
+      if (sameLog(local, merged)) return s.syncedTeam === team ? s : { ...s, syncedTeam: team };
+      return { ...s, comparisons: merged.comparisons, deletedComparisons: merged.deleted, syncedTeam: team };
+    });
   }
 
   unlinkLeague(): void {
@@ -125,12 +149,12 @@ export class StoreService {
   }
 
   removeComparison(id: string): void {
-    this.state.update((s) => ({ ...s, comparisons: s.comparisons.filter((c) => c.id !== id) }));
+    this.state.update((s) => withoutComparisons(s, [id]));
   }
 
   undoLastComparison(): Comparison | undefined {
     const last = this.state().comparisons.at(-1);
-    this.state.update((s) => ({ ...s, comparisons: s.comparisons.slice(0, -1) }));
+    if (last) this.state.update((s) => withoutComparisons(s, [last.id]));
     return last;
   }
 
@@ -146,12 +170,21 @@ export class StoreService {
   }
 
   clearComparisons(): void {
-    this.state.update((s) => ({ ...s, comparisons: [] }));
+    this.state.update((s) => withoutComparisons(s, s.comparisons.map((c) => c.id)));
   }
 
   resetAll(): void {
-    const token = this.state().deviceToken;
     removeKey(STORAGE_KEY);
-    this.state.set(emptyState(token));
+    this.state.set(emptyState());
   }
+}
+
+/** Removes comparisons and remembers their ids, so other devices delete them too. */
+function withoutComparisons(s: PersistedState, ids: string[]): PersistedState {
+  const gone = new Set(ids);
+  return {
+    ...s,
+    comparisons: s.comparisons.filter((c) => !gone.has(c.id)),
+    deletedComparisons: [...s.deletedComparisons, ...ids],
+  };
 }

@@ -90,12 +90,25 @@ export class ProfilePage {
     }
   }
 
+  protected readonly storageNote = computed(() => {
+    const team = this.store.league()?.franchiseName;
+    return team
+      ? `Your answers are saved in this browser and to ${team}, so picking that team on any device brings them back.`
+      : 'Your roster and answers live only in this browser. Import your team from your league to use them on any device.';
+  });
+
   protected clearComparisons(): void {
-    if (confirm('Delete all comparisons? Your roster is kept.')) this.store.clearComparisons();
+    const team = this.store.league()?.franchiseName;
+    const question = team
+      ? `Delete all comparisons for ${team}, on every device? Your roster is kept.`
+      : 'Delete all comparisons? Your roster is kept.';
+    if (confirm(question)) this.store.clearComparisons();
   }
 
   protected resetAll(): void {
-    if (confirm('Delete your roster, comparisons and settings from this browser?')) {
+    const team = this.store.league()?.franchiseName;
+    const kept = team ? ` Answers saved to ${team} stay saved; picking that team again brings them back.` : '';
+    if (confirm(`Delete your roster, comparisons and settings from this browser?${kept}`)) {
       this.store.resetAll();
     }
   }

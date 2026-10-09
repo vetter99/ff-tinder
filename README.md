@@ -151,15 +151,27 @@ most. The list holds up to 10, with each incoming player at most twice and each 
 most three times.
 
 **What's shared:** while your roster is linked to an MFL league, the app sends your market and
-personal value for each player (keyed by MFL player ID) to the server. It re-sends right away on
-load and 4 seconds after you stop answering. Matching happens on the server, and each manager only
-receives their own matches, never anyone else's values. Unlinking, switching teams or *Reset
-everything* deletes your shared values. Teams that haven't synced in 30 days are left out.
+personal value for each player (keyed by MFL player ID) to the server. Matching happens on the
+server, and each manager only receives their own matches, never anyone else's values. Teams that
+haven't synced in 30 days are left out.
 
-**Claiming a team:** there are no accounts yet. The first device to sync a team claims it with a
-random token, and only the token's hash is stored. Another device can't take that team over unless
-it hasn't synced for 14 days. To move to a new device, *Export* on the old one and *Import* on the
-new one: the token travels with the file.
+### 9. Your answers follow your team
+
+A linked team's answers are saved on the server under that league and team
+([team-sync.ts](src/domain/team-sync.ts)). Pick the same team on any device and its answers load.
+Answers from every device are combined.
+
+- **Syncing:** right away when a team is linked or the app opens, and 4 seconds after you stop
+  answering. The Trades page also syncs on open.
+- **Merging:** answers are combined by their ID. Undo, *I would never → Undo* and *Clear
+  comparisons* record the removed IDs, so a removal on one device sticks on all of them.
+- **Switching teams** starts from the new team's saved answers; the old team's answers stay saved
+  under it. *Unlink* and *Reset everything* only affect this browser: picking the team again brings
+  its answers back.
+- **No logins yet:** anyone who picks your team can see and change its answers. Accounts will fix
+  this.
+- Up to 5,000 answers are kept per team (the oldest are dropped first, by which time they've faded
+  away anyway).
 
 ## Development
 
@@ -189,9 +201,10 @@ pickups.
   league search, league details with rosters, and player names. It caches responses for 5 minutes
   (player names for a day).
 - **Only public leagues work for now.** Private leagues need MFL sign-in, which isn't built yet.
-- A linked roster joins league matching automatically (see
-  [League matches](#8-league-matches-both-managers-want-it)). The linked-league card shows how
-  many leaguemates are on FF Tinder.
+- A linked team saves its answers to the server so they follow you to any device (see
+  [section 9](#9-your-answers-follow-your-team)), and joins league matching (see
+  [section 8](#8-league-matches-both-managers-want-it)). The linked-league card shows how many
+  leaguemates are on FF Tinder.
 
 ## Player info on cards
 
@@ -242,9 +255,9 @@ Hosted on Cloudflare Workers (static assets). Every push to `main` redeploys it.
 `index.html` for app routes like `/compare`) and runs [worker/index.ts](worker/index.ts) for
 `/api/*` requests. No secrets are involved.
 
-League matches store data in a Cloudflare **D1** database bound as `DB`. The Worker creates its
-table on first use. Because `wrangler.jsonc` names the database without an ID, `wrangler deploy`
+Team answers and league matches are stored in a Cloudflare **D1** database bound as `DB`. The
+Worker creates its table on first use. Because `wrangler.jsonc` names the database without an ID, `wrangler deploy`
 creates it on the first deploy. If your build refuses to create it, run
 `npx wrangler d1 create ff-tinder` once and add the `database_id` it prints to `wrangler.jsonc`.
-Without a database, the rest of the app still works and the Trades page says league matching isn't
-available.
+Without a database, the rest of the app still works locally, and the Trades page says league
+matching isn't available.

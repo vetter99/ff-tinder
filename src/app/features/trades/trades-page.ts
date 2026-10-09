@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { CALIBRATION_COMPARISONS } from '../../../domain/active-learning';
 import { vetoKey } from '../../../domain/trades';
 import { Player } from '../../../domain/types';
-import { LeagueMatchesService } from '../../core/league-matches.service';
+import { TeamSyncService } from '../../core/team-sync.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { signed } from '../../shared/format';
@@ -49,19 +49,13 @@ const NEVER_EXIT_MS = 750;
       <section class="mt-6" aria-labelledby="matches-heading">
         <div class="flex items-baseline justify-between gap-3">
           <h2 id="matches-heading" class="shrink-0 text-sm font-medium text-amber-200">League matches</h2>
-          @if (leagueMatches.members(); as members) {
+          @if (teamSync.members(); as members) {
             <p class="text-right text-xs text-zinc-500">
-              {{ members }} of {{ leagueMatches.teams() }} teams in {{ link.leagueName }} on FF Tinder
+              {{ members }} of {{ teamSync.teams() }} teams in {{ link.leagueName }} on FF Tinder
             </p>
           }
         </div>
-        @switch (leagueMatches.status()) {
-          @case ('claimed') {
-            <p class="mt-2 rounded-lg border border-dashed border-zinc-800 px-4 py-4 text-sm text-zinc-400">
-              {{ link.franchiseName }} is already linked on another device, so matches show there. To
-              move here, export your data from that device's Profile page and import it on this one.
-            </p>
-          }
+        @switch (teamSync.status()) {
           @case ('unavailable') {
             <p class="mt-2 rounded-lg border border-dashed border-zinc-800 px-4 py-4 text-sm text-zinc-500">
               League matching isn't available on this server.
@@ -74,7 +68,7 @@ const NEVER_EXIT_MS = 750;
           }
           @default {
             <ul class="mt-2 space-y-4">
-              @for (m of leagueMatches.matches(); track m.franchiseId + m.send.id + m.receive.id) {
+              @for (m of teamSync.matches(); track m.franchiseId + m.send.id + m.receive.id) {
                 <li
                   class="relative overflow-hidden rounded-xl border border-amber-400/60 bg-amber-500/5 shadow-[0_0_24px_-8px] shadow-amber-400/40"
                   [class.never-out]="isLeaving(m.send, m.receive)"
@@ -119,9 +113,9 @@ const NEVER_EXIT_MS = 750;
                 </li>
               } @empty {
                 <li class="rounded-lg border border-dashed border-amber-400/30 px-4 py-4 text-sm text-zinc-400">
-                  @if (leagueMatches.status() === 'syncing' && leagueMatches.members() === null) {
+                  @if (teamSync.status() === 'syncing' && teamSync.members() === null) {
                     Checking your league for matches…
-                  } @else if (leagueMatches.members() === 1) {
+                  } @else if (teamSync.members() === 1) {
                     You're the first from {{ link.leagueName }} here. When leaguemates import their
                     teams, trades you both want show up here in gold.
                   } @else {
@@ -211,7 +205,7 @@ const NEVER_EXIT_MS = 750;
 export class TradesPage {
   protected readonly store = inject(StoreService);
   protected readonly valuation = inject(ValuationService);
-  protected readonly leagueMatches = inject(LeagueMatchesService);
+  protected readonly teamSync = inject(TeamSyncService);
   protected readonly signed = signed;
   protected readonly remaining = computed(() =>
     Math.max(0, CALIBRATION_COMPARISONS - this.store.comparisons().length),
@@ -221,7 +215,7 @@ export class TradesPage {
 
   constructor() {
     // Leaguemates may have answered since the last sync.
-    this.leagueMatches.refresh();
+    this.teamSync.refresh();
   }
 
   /** The trade whose card is playing its exit animation ("send>receive"). */

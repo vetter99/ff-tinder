@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { supportedPpr } from '../../../domain/format';
 import { matchMflRoster } from '../../../domain/league-import';
 import { LeagueSettings, Player } from '../../../domain/types';
-import { LeagueMatchesService } from '../../core/league-matches.service';
+import { TeamSyncService } from '../../core/team-sync.service';
 import { MflLeague, MflLeagueSummary, MflService } from '../../core/mfl.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
@@ -30,7 +30,7 @@ export class MflImport {
   private readonly mfl = inject(MflService);
   protected readonly store = inject(StoreService);
   private readonly valuation = inject(ValuationService);
-  private readonly leagueMatches = inject(LeagueMatchesService);
+  private readonly teamSync = inject(TeamSyncService);
 
   protected readonly open = signal(false);
   protected readonly query = signal('');
@@ -63,21 +63,19 @@ export class MflImport {
   });
 
   protected readonly matchSummary = computed(() => {
-    const m = this.leagueMatches;
+    const m = this.teamSync;
     switch (m.status()) {
-      case 'claimed':
-        return 'League matching is active for this team on another device.';
       case 'unavailable':
-        return 'League matching isn’t available on this server.';
+        return 'Saving answers to your team isn’t available on this server.';
       case 'error':
-        return 'Couldn’t reach league matching right now.';
+        return 'Couldn’t reach the server; your answers are safe here and will sync later.';
     }
     const members = m.members();
-    if (members === null) return 'Finding trade matches with your league…';
+    if (members === null) return 'Loading your team’s saved answers…';
     const count = m.matches().length;
     const others = members - 1;
-    if (others === 0) return 'Trade matching is on. No leaguemates have joined yet.';
-    return `${others} leaguemate${others === 1 ? '' : 's'} here · ${count} trade match${count === 1 ? '' : 'es'}`;
+    if (others === 0) return 'Answers saved to your team · no leaguemates here yet';
+    return `Answers saved to your team · ${others} leaguemate${others === 1 ? '' : 's'} here · ${count} trade match${count === 1 ? '' : 'es'}`;
   });
 
   protected start(): void {

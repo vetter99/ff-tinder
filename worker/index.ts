@@ -9,18 +9,17 @@
  *
  * Only these fixed, public read-only requests are forwarded, so this can't be used as an open proxy.
  *
- * League trade matches keep each member's shared values in D1 (binding DB):
+ * Each league team's answers and shared values live in D1 (binding DB):
  *
- *   POST /api/league/sync   { leagueId, franchiseId, token, values } → claims/updates the team,
- *                           returns how many teams take part and this team's matches
- *   POST /api/league/leave  { leagueId, franchiseId, token }         → removes the team's values
+ *   POST /api/league/sync  { leagueId, franchiseId, values, log } → merges the team's answers with
+ *                          the saved ones; returns them, how many teams take part, and the matches
  *
- * There are no accounts yet: the first device to sync a team claims it with a random token (only
- * its hash is stored). A claim left unused for CLAIM_EXPIRY_DAYS can be taken over. Members only
- * ever receive their own matches, never another member's values.
+ * There are no accounts yet: whoever picks a team on any device gets that team's answers. Members
+ * only ever receive their own matches, never another member's values.
  */
 
 import { findMatches, LeagueMember, parseSharedValues } from '../src/domain/matches';
+import { mergeLogs, parseLog } from '../src/domain/team-sync';
 
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
@@ -46,10 +45,10 @@ const USER_AGENT = 'FF-Tinder/1.0';
 const LEAGUE_TTL_S = 300;
 const PLAYERS_TTL_S = 86_400;
 const NEWS_TTL_S = 1_800;
-const CLAIM_EXPIRY_DAYS = 14;
 /** Members who haven't synced for this long are left out of matching. */
 const MEMBER_ACTIVE_DAYS = 30;
-const MAX_BODY_BYTES = 64 * 1024;
+/** Room for the full answer log (a few thousand answers). */
+const MAX_BODY_BYTES = 1_500_000;
 const DAY_MS = 86_400_000;
 
 export default {
@@ -64,9 +63,7 @@ export default {
         const body = await readBody(request);
         switch (url.pathname) {
           case '/api/league/sync':
-            return json(await syncMember(db, ctx, body));
-          case '/api/league/leave':
-            return json(await leave(db, body));
+            return json(await syncTeam(db, ctx, body));
           default:
             return json({ error: 'Not found' }, 404);
         }
@@ -99,10 +96,11 @@ async function database(env: Env): Promise<D1Database> {
   if (!db) throw new HttpError(503, 'League matching isn’t set up on this server');
   schemaReady ??= db
     .exec(
-      'CREATE TABLE IF NOT EXISTS league_members (' +
-        'league_id TEXT NOT NULL, season INTEGER NOT NULL, franchise_id TEXT NOT NULL, ' +
-        'token_hash TEXT NOT NULL, values_json TEXT NOT NULL, updated_at INTEGER NOT NULL, ' +
-        'PRIMARY KEY (league_id, season, franchise_id))',
+      // league_members held the earlier per-device claims; teams replaced it.
+      'DROP TABLE IF EXISTS league_members; ' +
+        'CREATE TABLE IF NOT EXISTS teams (' +
+        'league_id TEXT NOT NULL, franchise_id TEXT NOT NULL, values_json TEXT NOT NULL, ' +
+        'log_json TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (league_id, franchise_id))',
     )
     .catch((e) => {
       schemaReady = null;
@@ -124,92 +122,66 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   throw new HttpError(400, 'Invalid JSON body');
 }
 
-interface MemberKey {
-  leagueId: string;
-  franchiseId: string;
-  tokenHash: string;
-}
-
-async function memberKey(body: Record<string, unknown>): Promise<MemberKey> {
-  const { leagueId, franchiseId, token } = body;
-  if (typeof leagueId !== 'string' || !/^\d{4,6}$/.test(leagueId)) throw new HttpError(400, 'Invalid league ID');
-  if (typeof franchiseId !== 'string' || !/^\d{4}$/.test(franchiseId)) throw new HttpError(400, 'Invalid team ID');
-  if (typeof token !== 'string' || !/^[0-9a-f-]{32,64}$/i.test(token)) throw new HttpError(400, 'Invalid token');
-  return { leagueId, franchiseId, tokenHash: await sha256(token) };
-}
-
-interface MemberRow {
+interface TeamRow {
   franchise_id: string;
-  token_hash: string;
   values_json: string;
+  log_json: string;
   updated_at: number;
 }
 
-/** Claims or updates this team's shared values and returns its matches with the rest of the league. */
-async function syncMember(db: D1Database, ctx: Ctx, body: Record<string, unknown>) {
-  const key = await memberKey(body);
+/**
+ * Merges this team's answers with the saved ones, saves its values, and returns the merged answers
+ * plus the team's matches with the rest of the league.
+ */
+async function syncTeam(db: D1Database, ctx: Ctx, body: Record<string, unknown>) {
+  const { leagueId, franchiseId } = body;
+  if (typeof leagueId !== 'string' || !/^\d{4,6}$/.test(leagueId)) throw new HttpError(400, 'Invalid league ID');
+  if (typeof franchiseId !== 'string' || !/^\d{4}$/.test(franchiseId)) throw new HttpError(400, 'Invalid team ID');
   const values = parseSharedValues(body['values']);
   if (!values) throw new HttpError(400, 'Invalid values');
-  const season = currentSeason();
+  const log = parseLog(body['log']);
+  if (!log) throw new HttpError(400, 'Invalid answers');
   const now = Date.now();
 
-  const lg = await cachedData(`https://ff-tinder.internal/league/${key.leagueId}`, ctx, LEAGUE_TTL_S, () =>
-    league(key.leagueId),
+  const lg = await cachedData(`https://ff-tinder.internal/league/${leagueId}`, ctx, LEAGUE_TTL_S, () =>
+    league(leagueId),
   );
   const names = new Map(lg.franchises.map((f) => [f.id, f.name]));
-  if (!names.has(key.franchiseId)) throw new HttpError(400, 'That team isn’t in this league');
-
-  const existing = await db
-    .prepare('SELECT token_hash, updated_at FROM league_members WHERE league_id = ? AND season = ? AND franchise_id = ?')
-    .bind(key.leagueId, season, key.franchiseId)
-    .first<Pick<MemberRow, 'token_hash' | 'updated_at'>>();
-  if (existing && existing.token_hash !== key.tokenHash && now - existing.updated_at < CLAIM_EXPIRY_DAYS * DAY_MS) {
-    throw new HttpError(409, 'This team is already linked on another device');
-  }
-  await db
-    .prepare(
-      'INSERT INTO league_members (league_id, season, franchise_id, token_hash, values_json, updated_at) ' +
-        'VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (league_id, season, franchise_id) DO UPDATE SET ' +
-        'token_hash = excluded.token_hash, values_json = excluded.values_json, updated_at = excluded.updated_at',
-    )
-    .bind(key.leagueId, season, key.franchiseId, key.tokenHash, JSON.stringify(values), now)
-    .run();
+  if (!names.has(franchiseId)) throw new HttpError(400, 'That team isn’t in this league');
 
   const { results } = await db
-    .prepare('SELECT franchise_id, values_json, updated_at FROM league_members WHERE league_id = ? AND season = ? AND updated_at > ?')
-    .bind(key.leagueId, season, now - MEMBER_ACTIVE_DAYS * DAY_MS)
-    .all<Omit<MemberRow, 'token_hash'>>();
+    .prepare('SELECT franchise_id, values_json, log_json, updated_at FROM teams WHERE league_id = ?')
+    .bind(leagueId)
+    .all<TeamRow>();
+  const saved = results.find((r) => r.franchise_id === franchiseId);
+  const merged = saved ? mergeLogs(parseLog(JSON.parse(saved.log_json)) ?? { comparisons: [], deleted: [] }, log) : log;
+  await db
+    .prepare(
+      'INSERT INTO teams (league_id, franchise_id, values_json, log_json, updated_at) VALUES (?, ?, ?, ?, ?) ' +
+        'ON CONFLICT (league_id, franchise_id) DO UPDATE SET ' +
+        'values_json = excluded.values_json, log_json = excluded.log_json, updated_at = excluded.updated_at',
+    )
+    .bind(leagueId, franchiseId, JSON.stringify(values), JSON.stringify(merged), now)
+    .run();
+
   const rosters = new Map(lg.franchises.map((f) => [f.id, f.playerIds]));
-  const member = (franchiseId: string, v: LeagueMember['values']): LeagueMember => ({
-    franchiseId,
-    franchiseName: names.get(franchiseId) ?? `Team ${franchiseId}`,
-    roster: rosters.get(franchiseId) ?? [],
+  const member = (id: string, v: LeagueMember['values']): LeagueMember => ({
+    franchiseId: id,
+    franchiseName: names.get(id) ?? `Team ${id}`,
+    roster: rosters.get(id) ?? [],
     values: v,
   });
   const others = results
-    .filter((r) => r.franchise_id !== key.franchiseId && names.has(r.franchise_id))
+    .filter((r) => r.franchise_id !== franchiseId && names.has(r.franchise_id))
+    .filter((r) => now - r.updated_at < MEMBER_ACTIVE_DAYS * DAY_MS)
     .map((r) => member(r.franchise_id, parseSharedValues(JSON.parse(r.values_json)) ?? {}));
 
   return {
+    log: merged,
     teams: lg.teams,
     members: others.length + 1,
-    matches: findMatches(member(key.franchiseId, values), others),
+    matches: findMatches(member(franchiseId, values), others),
   };
-}
-
-/** Removes this team's shared values (only with the token that claimed it). */
-async function leave(db: D1Database, body: Record<string, unknown>) {
-  const key = await memberKey(body);
-  await db
-    .prepare('DELETE FROM league_members WHERE league_id = ? AND season = ? AND franchise_id = ? AND token_hash = ?')
-    .bind(key.leagueId, currentSeason(), key.franchiseId, key.tokenHash)
-    .run();
-  return { ok: true };
-}
-
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 class HttpError extends Error {
