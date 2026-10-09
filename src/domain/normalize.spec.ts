@@ -23,6 +23,14 @@ describe('normalizeFantasyCalc', () => {
     expect(players).toHaveLength(1);
     expect(players[0].id).toBe('fc:1');
   });
+
+  it('keeps numeric MFL ids and drops placeholders like "UNK"', () => {
+    const players = normalizeFantasyCalc([
+      { ...row(1, 'A', 'RB', 100, '10'), player: { ...row(1, 'A', 'RB', 100, '10').player, mflId: '13604' } },
+      { ...row(2, 'B', 'WR', 90, '20'), player: { ...row(2, 'B', 'WR', 90, '20').player, mflId: 'UNK' } },
+    ]);
+    expect(players.map((p) => p.ids.mfl)).toEqual(['13604', null]);
+  });
 });
 
 describe('baselineFromRank', () => {

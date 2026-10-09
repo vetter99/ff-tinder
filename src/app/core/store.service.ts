@@ -22,9 +22,14 @@ export interface PersistedState {
   /** Set when the roster was imported from a league site. */
   league: LeagueLink | null;
   comparisons: Comparison[];
+  /**
+   * Random id that claims the linked league team for league matching. Moves with Export/Import so
+   * another device can take over the claim; kept on reset so a reset can't lock you out of it.
+   */
+  deviceToken: string;
 }
 
-function emptyState(): PersistedState {
+function emptyState(deviceToken: string = crypto.randomUUID()): PersistedState {
   return {
     schemaVersion: SCHEMA_VERSION,
     settings: DEFAULT_SETTINGS,
@@ -32,6 +37,7 @@ function emptyState(): PersistedState {
     roster: [],
     league: null,
     comparisons: [],
+    deviceToken,
   };
 }
 
@@ -45,6 +51,7 @@ function migrate(raw: Partial<PersistedState> | null): PersistedState {
     roster: Array.isArray(raw.roster) ? raw.roster : [],
     league: raw.league ?? null,
     comparisons: Array.isArray(raw.comparisons) ? raw.comparisons : [],
+    deviceToken: typeof raw.deviceToken === 'string' ? raw.deviceToken : crypto.randomUUID(),
   };
 }
 
@@ -59,6 +66,7 @@ export class StoreService {
   readonly rosterIds = computed(() => new Set(this.state().roster));
   readonly league = computed(() => this.state().league);
   readonly comparisons = computed(() => this.state().comparisons);
+  readonly deviceToken = computed(() => this.state().deviceToken);
 
   constructor() {
     effect(() => writeJson(STORAGE_KEY, this.state()));
@@ -132,7 +140,8 @@ export class StoreService {
   }
 
   resetAll(): void {
+    const token = this.state().deviceToken;
     removeKey(STORAGE_KEY);
-    this.state.set(emptyState());
+    this.state.set(emptyState(token));
   }
 }

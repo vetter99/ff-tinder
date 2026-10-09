@@ -2,10 +2,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { supportedPpr } from '../../../domain/format';
 import { matchMflRoster } from '../../../domain/league-import';
 import { LeagueSettings, Player } from '../../../domain/types';
+import { LeagueMatchesService } from '../../core/league-matches.service';
 import { MflLeague, MflLeagueSummary, MflService } from '../../core/mfl.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { relativeTime } from '../../shared/format';
+import { HelpTip } from '../../shared/help-tip';
 import { PlayerLine } from '../../shared/player-line';
 
 interface FranchiseOption {
@@ -20,7 +22,7 @@ interface FranchiseOption {
 /** Find an MFL league, pick your team, and import its roster. */
 @Component({
   selector: 'app-mfl-import',
-  imports: [PlayerLine],
+  imports: [PlayerLine, HelpTip],
   templateUrl: './mfl-import.html',
   host: { class: 'block' },
 })
@@ -28,6 +30,7 @@ export class MflImport {
   private readonly mfl = inject(MflService);
   protected readonly store = inject(StoreService);
   private readonly valuation = inject(ValuationService);
+  private readonly leagueMatches = inject(LeagueMatchesService);
 
   protected readonly open = signal(false);
   protected readonly query = signal('');
@@ -57,6 +60,24 @@ export class MflImport {
   protected readonly syncedLabel = computed(() => {
     const link = this.store.league();
     return link ? relativeTime(new Date(link.importedAt).toISOString(), Date.now()) : '';
+  });
+
+  protected readonly matchSummary = computed(() => {
+    const m = this.leagueMatches;
+    switch (m.status()) {
+      case 'claimed':
+        return 'League matching is active for this team on another device.';
+      case 'unavailable':
+        return 'League matching isn’t available on this server.';
+      case 'error':
+        return 'Couldn’t reach league matching right now.';
+    }
+    const members = m.members();
+    if (members === null) return 'Finding trade matches with your league…';
+    const count = m.matches().length;
+    const others = members - 1;
+    if (others === 0) return 'Trade matching is on. No leaguemates have joined yet.';
+    return `${others} leaguemate${others === 1 ? '' : 's'} here · ${count} trade match${count === 1 ? '' : 'es'}`;
   });
 
   protected start(): void {

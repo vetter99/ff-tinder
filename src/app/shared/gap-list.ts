@@ -32,6 +32,13 @@ import { PlayerLine } from './player-line';
             @if (explain(); as fn) {
               <p class="mt-1.5 text-xs text-zinc-500">{{ fn(g) }}</p>
             }
+            @if (detail(); as fn) {
+              @if (fn(g); as text) {
+                <p class="mt-1 text-xs text-emerald-300/90">{{ text }}</p>
+              } @else if (detailEmpty()) {
+                <p class="mt-1 text-xs text-zinc-600">{{ detailEmpty() }}</p>
+              }
+            }
           </li>
         }
       </ul>
@@ -47,5 +54,8 @@ export class GapList {
   readonly gaps = input.required<ValueGap[]>();
   readonly empty = input('Nothing yet.');
   readonly explain = input<((g: ValueGap) => string) | null>(null);
+  /** Optional highlighted second line (e.g. the best trade offer); falls back to `detailEmpty`. */
+  readonly detail = input<((g: ValueGap) => string | null) | null>(null);
+  readonly detailEmpty = input<string | null>(null);
   protected readonly signed = signed;
 }

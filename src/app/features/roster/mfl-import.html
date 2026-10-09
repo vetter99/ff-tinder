@@ -21,6 +21,15 @@
       <button type="button" class="text-xs text-zinc-500 hover:text-zinc-200" (click)="store.unlinkLeague()">
         Unlink
       </button>
+      <div class="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 border-t border-zinc-800/70 pt-2 text-xs text-zinc-400">
+        <span class="text-amber-200" aria-hidden="true">★</span>
+        <span>{{ matchSummary() }}</span>
+        <app-help-tip label="league matching">
+          Your player values are shared with this app's server so it can find trades that you and a
+          leaguemate both want. Leaguemates only ever see those mutual matches, never your rankings.
+          Unlinking removes your shared values.
+        </app-help-tip>
+      </div>
     </div>
   }
 } @else if (!open()) {

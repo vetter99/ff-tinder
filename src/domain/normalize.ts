@@ -38,7 +38,8 @@ export function normalizeFantasyCalc(rows: readonly FantasyCalcRow[]): Player[] 
       ids: {
         sleeper: r.player.sleeperId ?? null,
         espn: r.player.espnId ?? null,
-        mfl: r.player.mflId ?? null,
+        // FantasyCalc uses placeholders like "UNK" for players it can't map to MFL.
+        mfl: r.player.mflId && /^\d+$/.test(r.player.mflId) ? r.player.mflId : null,
         fantasycalc: r.player.id,
       },
       market: {

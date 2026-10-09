@@ -1,5 +1,5 @@
 import { PersonalValue } from './preference';
-import { signed } from './targets';
+import { signed, ValueGap } from './targets';
 import { Player, PlayerId } from './types';
 
 export const TRADE_RULES = {
@@ -45,6 +45,11 @@ export interface TradeContext {
  * preference edge (gap received − gap sent), minus any market value the user overpays.
  */
 export function generateOneForOne(ctx: TradeContext, rules = TRADE_RULES): TradeIdea[] {
+  return pickDiverse(allOneForOneIdeas(ctx, rules), rules);
+}
+
+/** Every acceptable 1-for-1, best first, before limiting how often each player appears. */
+export function allOneForOneIdeas(ctx: TradeContext, rules = TRADE_RULES): TradeIdea[] {
   const { players, roster, values, requirePlayerEvidence = false } = ctx;
   const gap = (p: Player) => values.get(p.id)?.gap ?? 0;
   const compared = (p: Player) => (values.get(p.id)?.comparisons ?? 0) > 0;
@@ -83,7 +88,11 @@ export function generateOneForOne(ctx: TradeContext, rules = TRADE_RULES): Trade
     }
   }
 
-  ideas.sort((a, b) => b.score - a.score);
+  return ideas.sort((a, b) => b.score - a.score);
+}
+
+/** Keeps the list varied: each player appears a limited number of times. */
+export function pickDiverse(ideas: readonly TradeIdea[], rules = TRADE_RULES): TradeIdea[] {
   const perIncoming = new Map<PlayerId, number>();
   const perOutgoing = new Map<PlayerId, number>();
   const picked: TradeIdea[] = [];
@@ -121,4 +130,28 @@ function explainTrade(
       : `By consensus you ${marketDelta > 0 ? 'gain' : 'give up'} about ${pct}% in market value.`,
   );
   return reasons;
+}
+
+export interface RankedTarget extends ValueGap {
+  /** The best fair 1-for-1 the user could offer from their roster, if any. */
+  bestOffer: TradeIdea | null;
+}
+
+/**
+ * Orders trade targets by how good a deal the user can actually make: the best fair offer's edge
+ * (how much more the user likes the target than consensus does, minus how much more they like the
+ * player they'd send), less any overpay. Targets with no fair offer on the roster come last.
+ */
+export function rankTargets(targets: readonly ValueGap[], ideas: readonly TradeIdea[]): RankedTarget[] {
+  const best = new Map<PlayerId, TradeIdea>();
+  for (const idea of ideas) {
+    if (!best.has(idea.receive.id)) best.set(idea.receive.id, idea); // ideas are sorted best first
+  }
+  return targets
+    .map((t) => ({ ...t, bestOffer: best.get(t.player.id) ?? null }))
+    .sort((a, b) => {
+      if (a.bestOffer && b.bestOffer) return b.bestOffer.score - a.bestOffer.score;
+      if (a.bestOffer || b.bestOffer) return a.bestOffer ? -1 : 1;
+      return b.personal.gap - a.personal.gap;
+    });
 }

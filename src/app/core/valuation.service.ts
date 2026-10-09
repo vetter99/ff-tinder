@@ -9,7 +9,7 @@ import {
   positionLeans,
 } from '../../domain/preference';
 import { findValueGaps, valueGaps } from '../../domain/targets';
-import { generateOneForOne } from '../../domain/trades';
+import { allOneForOneIdeas, pickDiverse, rankTargets } from '../../domain/trades';
 import { Player, PlayerId } from '../../domain/types';
 import { RankingsService } from './rankings.service';
 import { StoreService } from './store.service';
@@ -74,12 +74,16 @@ export class ValuationService {
     this.allGaps().filter((g) => g.personal.gap < 0).slice(0, 15),
   );
 
-  readonly trades = computed(() =>
-    generateOneForOne({
-      players: this.players(),
-      roster: this.roster(),
-      values: this.values(),
-      requirePlayerEvidence: this.store.options().requirePlayerEvidence,
-    }),
-  );
+  private readonly tradeContext = computed(() => ({
+    players: this.players(),
+    roster: this.roster(),
+    values: this.values(),
+    requirePlayerEvidence: this.store.options().requirePlayerEvidence,
+  }));
+  /** Every fair 1-for-1, best first. */
+  private readonly allIdeas = computed(() => allOneForOneIdeas(this.tradeContext()));
+  /** Trade Ideas page: the best ideas, varied so no player dominates the list. */
+  readonly trades = computed(() => pickDiverse(this.allIdeas()));
+  /** Targets ranked by the best fair offer the user could make for each. */
+  readonly rankedTargets = computed(() => rankTargets(this.gaps().targets, this.allIdeas()));
 }

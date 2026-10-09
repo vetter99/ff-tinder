@@ -99,11 +99,16 @@ QB matchup in every 8.
 ### 6. Trade targets and sell candidates
 
 - **Targets:** players not on your roster whose blended value is at least **1.5 points** above
-  market.
-- **Sell candidates:** your own players at least 1.5 points below market.
+  market. They're ranked by the **best fair trade you could offer** for each: of all acceptable
+  1-for-1s (the rules in section 7), the one with the highest edge, meaning (how far above
+  consensus you are on the target) − (how far above consensus you are on the player you'd send),
+  minus any overpay. Each target shows that best offer. Targets with no fair offer on your roster
+  come last, ordered by gap.
+- **Sell candidates:** your own players at least 1.5 points below market, biggest gap first.
 
 Players worth less than 3 are ignored. With *Only players I've compared* on, a player needs at
-least one direct comparison to appear. ([targets.ts](src/domain/targets.ts))
+least one direct comparison to appear. ([targets.ts](src/domain/targets.ts),
+[trades.ts](src/domain/trades.ts))
 
 ### 7. Trade ideas (1-for-1)
 
@@ -121,8 +126,35 @@ twice and each of your players at most four times. Your lineup plays no part: th
 positional needs are ignored, so ideas come only from how you value players compared with the
 market.
 
-Because the scoring code doesn't depend on Angular, it can later run on a server for multi-manager
-trade matching.
+### 8. League matches (both managers want it)
+
+When teams from the same MyFantasyLeague league have imported their rosters, the server looks for
+1-for-1 swaps between two real teams that **both** managers want
+([matches.ts](src/domain/matches.ts)). These show on the Trades page as gold
+"It's a match" cards. A match needs all of these:
+1. **Real rosters:** you send a player on your MFL roster for one on theirs. Rosters come straight
+   from MFL, not from what anyone typed in.
+2. **QBs are only traded for QBs.**
+3. **Fair by market:** the two players' market values are within **12%** of each other (1 point
+   for cheap players). This is checked with both managers' market values, in case their formats
+   differ.
+4. **You both have an edge** of at least **1 point**: you prefer their player over yours by more than
+   consensus does, *and* they prefer yours over theirs by more than consensus does.
+
+Matches are ranked by the smaller of the two edges, so the best match is the one both sides want
+most. The list holds up to 10, with each incoming player at most twice and each of your players at
+most three times.
+
+**What's shared:** while your roster is linked to an MFL league, the app sends your market and
+personal value for each player (keyed by MFL player ID) to the server. It re-sends right away on
+load and 4 seconds after you stop answering. Matching happens on the server, and each manager only
+receives their own matches, never anyone else's values. Unlinking, switching teams or *Reset
+everything* deletes your shared values. Teams that haven't synced in 30 days are left out.
+
+**Claiming a team:** there are no accounts yet. The first device to sync a team claims it with a
+random token, and only the token's hash is stored. Another device can't take that team over unless
+it hasn't synced for 14 days. To move to a new device, *Export* on the old one and *Import* on the
+new one: the token travels with the file.
 
 ## Development
 
@@ -130,7 +162,7 @@ Requires Node 22.22.3+ or 24.15+ (the Angular 22 minimums).
 
 ```sh
 npm install
-npm run worker     # the /api server (MyFantasyLeague proxy) on :8787; needed for league import
+npm run worker     # the /api server (MFL proxy, league matches with a local D1 database) on :8787
 npm start          # http://localhost:4200, forwards /api to the worker
 npm test           # unit tests, including simulated-user learning tests
 npm run build      # static site in dist/ff-tinder/browser
@@ -152,6 +184,31 @@ pickups.
   league search, league details with rosters, and player names. It caches responses for 5 minutes
   (player names for a day).
 - **Only public leagues work for now.** Private leagues need MFL sign-in, which isn't built yet.
+- A linked roster joins league matching automatically (see
+  [League matches](#8-league-matches-both-managers-want-it)). The linked-league card shows how
+  many leaguemates are on FF Tinder.
+
+## Player info on cards
+
+Each comparison card shows the player's injury tag, points per game, and last game in your
+league's scoring, plus their latest news headline if it's under 10 days old. The **i** button opens
+a sheet with injury details and practice status, depth chart, weekly points, season stats and the
+latest news.
+
+- Injuries, depth chart and weekly stats come from Sleeper's public API, called directly.
+- News comes from RotoWire player updates on ESPN's fantasy feed. It's fetched through
+  `/api/news` in the Worker, which trims about 90 KB down to a few hundred bytes and caches it for
+  30 minutes.
+- Info is cached in memory for 15 minutes per player.
+
+## League formats
+
+The format controls on the Roster page offer only what FantasyCalc publishes distinct values for:
+**Redraft or Dynasty**, **8/10/12/14 teams**, **Standard/Half/Full PPR**, and **1 QB or
+Superflex**. Its API accepts other values (16 teams, 0.25 PPR, …) but silently returns default
+values for them, so saved or imported settings are mapped to the nearest supported option. An MFL
+import sets team count, superflex, and scoring (from the league's points-per-catch rule)
+automatically. The header shows the current format, and tapping it opens these settings.
 
 ## Data and fallbacks
 
@@ -160,7 +217,7 @@ Player values load from the first source that works, in this order:
 1. A cache in localStorage that's less than 6 hours old.
 2. Live data from FantasyCalc.
 3. The same cache, however old it is.
-4. The bundled `public/data/snapshot.json`, which is always 12-team PPR 1QB data. The header shows
+4. The bundled `public/data/snapshot.json`, which is always 12-team PPR 1QB redraft data. The header shows
    a notice when this doesn't match your league settings.
 
 Headshots load from Sleeper's CDN, with initials shown when an image is missing. FantasyCalc has no
@@ -179,3 +236,10 @@ Hosted on Cloudflare Workers (static assets). Every push to `main` redeploys it.
 [wrangler.jsonc](wrangler.jsonc) serves `dist/ff-tinder/browser` as static assets (falling back to
 `index.html` for app routes like `/compare`) and runs [worker/index.ts](worker/index.ts) for
 `/api/*` requests. No secrets are involved.
+
+League matches store data in a Cloudflare **D1** database bound as `DB`. The Worker creates its
+table on first use. Because `wrangler.jsonc` names the database without an ID, `wrangler deploy`
+creates it on the first deploy. If your build refuses to create it, run
+`npx wrangler d1 create ff-tinder` once and add the `database_id` it prints to `wrangler.jsonc`.
+Without a database, the rest of the app still works and the Trades page says league matching isn't
+available.

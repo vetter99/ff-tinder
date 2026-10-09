@@ -2,7 +2,7 @@ import { scorePairs, selectNextPair } from './active-learning';
 import { emptyModel, fitModel, personalValues, PersonalValue } from './preference';
 import { findValueGaps } from './targets';
 import { makePlayer, makePlayers, seededRandom } from './testing';
-import { generateOneForOne, TRADE_RULES } from './trades';
+import { allOneForOneIdeas, generateOneForOne, rankTargets, TRADE_RULES } from './trades';
 import { Comparison, Player, PlayerId } from './types';
 
 function valuesWith(players: Player[], gaps: Record<PlayerId, number>): Map<PlayerId, PersonalValue> {
@@ -184,5 +184,25 @@ describe('findValueGaps', () => {
     const { targets, sells } = findValueGaps(players, values, new Set(['p6', 'p7']));
     expect(targets.map((t) => t.player.id)).toEqual(['p5']);
     expect(sells.map((t) => t.player.id)).toEqual(['p6']);
+  });
+});
+
+describe('rankTargets', () => {
+  const roster = [makePlayer('mine-wr', 'WR', 60), makePlayer('mine-rb', 'RB', 30)];
+  // A: smaller gap (+6), but you can pay with a player you're neutral on → edge 6.
+  const targetA = makePlayer('a', 'RB', 30);
+  // B: bigger gap (+8), but the only fair offer is a player you also like (+4) → edge 4, less overpay.
+  const targetB = makePlayer('b', 'WR', 59);
+  const targetC = makePlayer('c', 'RB', 95); // no fair offer on your roster
+  const players = [...roster, targetA, targetB, targetC];
+
+  it('ranks targets by the best fair offer, not by raw gap', () => {
+    const values = valuesWith(players, { a: 6, b: 8, c: 12, 'mine-wr': 4 });
+    const { targets } = findValueGaps(players, values, new Set(roster.map((p) => p.id)));
+    const ranked = rankTargets(targets, allOneForOneIdeas({ players, roster, values }));
+    expect(ranked.map((t) => t.player.id)).toEqual(['a', 'b', 'c']);
+    expect(ranked[0].bestOffer?.send.id).toBe('mine-rb');
+    expect(ranked[1].bestOffer?.send.id).toBe('mine-wr');
+    expect(ranked[2].bestOffer).toBeNull();
   });
 });

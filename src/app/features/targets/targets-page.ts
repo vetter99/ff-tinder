@@ -1,6 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { explainGap } from '../../../domain/targets';
+import { explainGap, signed, ValueGap } from '../../../domain/targets';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { GapList } from '../../shared/gap-list';
@@ -11,7 +11,9 @@ import { GapList } from '../../shared/gap-list';
   template: `
     <h1 class="text-xl font-semibold">Trade targets</h1>
     <p class="mt-1 text-sm text-zinc-400">
-      Players you value above their consensus market value, and roster players you value below it.
+      Players you value above consensus, ranked by the best fair trade you could offer for them: the
+      more you like their player <em>and</em> the less you'd give up of what you like, the higher
+      they rank.
     </p>
 
     @if (count() === 0) {
@@ -29,8 +31,10 @@ import { GapList } from '../../shared/gap-list';
         </h2>
         <app-gap-list
           class="mt-2"
-          [gaps]="valuation.gaps().targets"
+          [gaps]="valuation.rankedTargets()"
           [explain]="explain"
+          [detail]="offerNote"
+          detailEmpty="No fair 1-for-1 from your roster for this player."
           empty="No players stand out yet. Keep comparing."
         />
       </section>
@@ -54,4 +58,17 @@ export class TargetsPage {
   protected readonly valuation = inject(ValuationService);
   protected readonly count = computed(() => this.store.comparisons().length);
   protected readonly explain = explainGap;
+
+  private readonly offers = computed(
+    () => new Map(this.valuation.rankedTargets().map((t) => [t.player.id, t.bestOffer])),
+  );
+
+  /** "Best offer: Chris Olave (even) · edge +4.1" for a ranked target. */
+  protected readonly offerNote = (g: ValueGap): string | null => {
+    const offer = this.offers().get(g.player.id);
+    if (!offer) return null;
+    const pct = Math.round(Math.abs(offer.marketDeltaShare) * 100);
+    const market = pct <= 2 ? 'even by market' : offer.marketDelta > 0 ? `you +${pct}% by market` : `you overpay ${pct}%`;
+    return `Best offer: ${offer.send.name} (${market}) · your edge ${signed(offer.score)}`;
+  };
 }

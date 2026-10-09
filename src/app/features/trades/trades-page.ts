@@ -1,6 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CALIBRATION_COMPARISONS } from '../../../domain/active-learning';
+import { LeagueMatchesService } from '../../core/league-matches.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { signed } from '../../shared/format';
@@ -26,7 +27,85 @@ import { PlayerLine } from '../../shared/player-line';
       </p>
     }
 
-    <ul class="mt-6 space-y-4">
+    @if (store.league(); as link) {
+      <section class="mt-6" aria-labelledby="matches-heading">
+        <div class="flex items-baseline justify-between gap-3">
+          <h2 id="matches-heading" class="shrink-0 text-sm font-medium text-amber-200">League matches</h2>
+          @if (leagueMatches.members(); as members) {
+            <p class="text-right text-xs text-zinc-500">
+              {{ members }} of {{ leagueMatches.teams() }} teams in {{ link.leagueName }} on FF Tinder
+            </p>
+          }
+        </div>
+        @switch (leagueMatches.status()) {
+          @case ('claimed') {
+            <p class="mt-2 rounded-lg border border-dashed border-zinc-800 px-4 py-4 text-sm text-zinc-400">
+              {{ link.franchiseName }} is already linked on another device, so matches show there. To
+              move here, export your data from that device's Profile page and import it on this one.
+            </p>
+          }
+          @case ('unavailable') {
+            <p class="mt-2 rounded-lg border border-dashed border-zinc-800 px-4 py-4 text-sm text-zinc-500">
+              League matching isn't available on this server.
+            </p>
+          }
+          @case ('error') {
+            <p class="mt-2 rounded-lg border border-dashed border-zinc-800 px-4 py-4 text-sm text-zinc-500" role="status">
+              Couldn't check for matches right now. They'll update on your next visit.
+            </p>
+          }
+          @default {
+            <ul class="mt-2 space-y-4">
+              @for (m of leagueMatches.matches(); track m.franchiseId + m.send.id + m.receive.id) {
+                <li class="overflow-hidden rounded-xl border border-amber-400/60 bg-amber-500/5 shadow-[0_0_24px_-8px] shadow-amber-400/40">
+                  <p class="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-yellow-300 px-4 py-1.5 text-sm font-semibold text-zinc-950">
+                    <span aria-hidden="true">★</span> It's a match: you both want this
+                  </p>
+                  <div class="p-4">
+                    <div class="grid grid-cols-2 gap-4">
+                      <div class="min-w-0">
+                        <p class="mb-2 text-[11px] font-semibold tracking-wider text-rose-300/80 uppercase">You send</p>
+                        <app-player-line [player]="m.send" />
+                      </div>
+                      <div class="min-w-0">
+                        <p class="mb-2 text-[11px] font-semibold tracking-wider text-emerald-300/80 uppercase">
+                          From {{ m.franchiseName }}
+                        </p>
+                        <app-player-line [player]="m.receive" />
+                      </div>
+                    </div>
+                    <p class="mt-3 text-xs text-zinc-400">
+                      You like {{ m.receive.name }} more than consensus does next to {{ m.send.name }}
+                      (edge <span class="font-semibold text-amber-200 tabular-nums">{{ signed(m.yourEdge) }}</span>),
+                      and {{ m.franchiseName }} feels the same about {{ m.send.name }}. Fair by market.
+                    </p>
+                  </div>
+                </li>
+              } @empty {
+                <li class="rounded-lg border border-dashed border-amber-400/30 px-4 py-4 text-sm text-zinc-400">
+                  @if (leagueMatches.status() === 'syncing' && leagueMatches.members() === null) {
+                    Checking your league for matches…
+                  } @else if (leagueMatches.members() === 1) {
+                    You're the first from {{ link.leagueName }} here. When leaguemates import their
+                    teams, trades you both want show up here in gold.
+                  } @else {
+                    No mutual trades yet. Matches update as you and your leaguemates keep comparing.
+                  }
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
+    } @else {
+      <p class="mt-4 rounded-md bg-zinc-900 px-3 py-2 text-xs text-zinc-400">
+        <a routerLink="/roster" class="text-amber-200 hover:underline">Import your team from MyFantasyLeague</a>
+        to see trades your leaguemates want too.
+      </p>
+    }
+
+    <h2 class="mt-8 text-sm font-medium text-zinc-300">Ideas from your preferences</h2>
+    <ul class="mt-2 space-y-4">
       @for (t of valuation.trades(); track t.send.id + t.receive.id) {
         <li class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
           <div class="grid grid-cols-2 gap-4">
@@ -78,10 +157,16 @@ import { PlayerLine } from '../../shared/player-line';
 export class TradesPage {
   protected readonly store = inject(StoreService);
   protected readonly valuation = inject(ValuationService);
+  protected readonly leagueMatches = inject(LeagueMatchesService);
   protected readonly signed = signed;
   protected readonly remaining = computed(() =>
     Math.max(0, CALIBRATION_COMPARISONS - this.store.comparisons().length),
   );
+
+  constructor() {
+    // Leaguemates may have answered since the last sync.
+    this.leagueMatches.refresh();
+  }
 
   protected marketLabel(share: number): string {
     const pct = Math.round(Math.abs(share) * 100);

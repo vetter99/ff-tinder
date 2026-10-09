@@ -8,11 +8,37 @@
  *   GET /api/news?espn=<ESPN player id>   → a player's latest news blurbs, trimmed from ESPN's feed
  *
  * Only these fixed, public read-only requests are forwarded, so this can't be used as an open proxy.
+ *
+ * League trade matches keep each member's shared values in D1 (binding DB):
+ *
+ *   POST /api/league/sync   { leagueId, franchiseId, token, values } → claims/updates the team,
+ *                           returns how many teams take part and this team's matches
+ *   POST /api/league/leave  { leagueId, franchiseId, token }         → removes the team's values
+ *
+ * There are no accounts yet: the first device to sync a team claims it with a random token (only
+ * its hash is stored). A claim left unused for CLAIM_EXPIRY_DAYS can be taken over. Members only
+ * ever receive their own matches, never another member's values.
  */
+
+import { findMatches, LeagueMember, parseSharedValues } from '../src/domain/matches';
 
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
+  DB?: D1Database;
 }
+
+/** The subset of Cloudflare's D1 API used here. */
+interface D1Database {
+  prepare(sql: string): D1Statement;
+  exec(sql: string): Promise<unknown>;
+}
+interface D1Statement {
+  bind(...values: unknown[]): D1Statement;
+  first<T>(): Promise<T | null>;
+  all<T>(): Promise<{ results: T[] }>;
+  run(): Promise<unknown>;
+}
+type Ctx = { waitUntil(p: Promise<unknown>): void };
 
 const MFL_API = 'https://api.myfantasyleague.com';
 /** MFL asks API clients to identify themselves. */
@@ -20,14 +46,32 @@ const USER_AGENT = 'FF-Tinder/1.0';
 const LEAGUE_TTL_S = 300;
 const PLAYERS_TTL_S = 86_400;
 const NEWS_TTL_S = 1_800;
+const CLAIM_EXPIRY_DAYS = 14;
+/** Members who haven't synced for this long are left out of matching. */
+const MEMBER_ACTIVE_DAYS = 30;
+const MAX_BODY_BYTES = 64 * 1024;
+const DAY_MS = 86_400_000;
 
 export default {
-  async fetch(request: Request, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
+  async fetch(request: Request, env: Env, ctx: Ctx) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
-    if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
 
     try {
+      if (url.pathname.startsWith('/api/league/')) {
+        if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+        const db = await database(env);
+        const body = await readBody(request);
+        switch (url.pathname) {
+          case '/api/league/sync':
+            return json(await syncMember(db, ctx, body));
+          case '/api/league/leave':
+            return json(await leave(db, body));
+          default:
+            return json({ error: 'Not found' }, 404);
+        }
+      }
+      if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
       switch (url.pathname) {
         case '/api/mfl/search':
           return await cached(request, ctx, LEAGUE_TTL_S, () => search(url.searchParams.get('q')));
@@ -46,6 +90,127 @@ export default {
     }
   },
 };
+
+let schemaReady: Promise<unknown> | null = null;
+
+/** The D1 database, with its table created on first use. */
+async function database(env: Env): Promise<D1Database> {
+  const db = env.DB;
+  if (!db) throw new HttpError(503, 'League matching isn’t set up on this server');
+  schemaReady ??= db
+    .exec(
+      'CREATE TABLE IF NOT EXISTS league_members (' +
+        'league_id TEXT NOT NULL, season INTEGER NOT NULL, franchise_id TEXT NOT NULL, ' +
+        'token_hash TEXT NOT NULL, values_json TEXT NOT NULL, updated_at INTEGER NOT NULL, ' +
+        'PRIMARY KEY (league_id, season, franchise_id))',
+    )
+    .catch((e) => {
+      schemaReady = null;
+      throw e;
+    });
+  await schemaReady;
+  return db;
+}
+
+async function readBody(request: Request): Promise<Record<string, unknown>> {
+  const text = await request.text();
+  if (text.length > MAX_BODY_BYTES) throw new HttpError(413, 'Request too large');
+  try {
+    const body: unknown = JSON.parse(text);
+    if (body && typeof body === 'object' && !Array.isArray(body)) return body as Record<string, unknown>;
+  } catch {
+    // fall through
+  }
+  throw new HttpError(400, 'Invalid JSON body');
+}
+
+interface MemberKey {
+  leagueId: string;
+  franchiseId: string;
+  tokenHash: string;
+}
+
+async function memberKey(body: Record<string, unknown>): Promise<MemberKey> {
+  const { leagueId, franchiseId, token } = body;
+  if (typeof leagueId !== 'string' || !/^\d{4,6}$/.test(leagueId)) throw new HttpError(400, 'Invalid league ID');
+  if (typeof franchiseId !== 'string' || !/^\d{4}$/.test(franchiseId)) throw new HttpError(400, 'Invalid team ID');
+  if (typeof token !== 'string' || !/^[0-9a-f-]{32,64}$/i.test(token)) throw new HttpError(400, 'Invalid token');
+  return { leagueId, franchiseId, tokenHash: await sha256(token) };
+}
+
+interface MemberRow {
+  franchise_id: string;
+  token_hash: string;
+  values_json: string;
+  updated_at: number;
+}
+
+/** Claims or updates this team's shared values and returns its matches with the rest of the league. */
+async function syncMember(db: D1Database, ctx: Ctx, body: Record<string, unknown>) {
+  const key = await memberKey(body);
+  const values = parseSharedValues(body['values']);
+  if (!values) throw new HttpError(400, 'Invalid values');
+  const season = currentSeason();
+  const now = Date.now();
+
+  const lg = await cachedData(`https://ff-tinder.internal/league/${key.leagueId}`, ctx, LEAGUE_TTL_S, () =>
+    league(key.leagueId),
+  );
+  const names = new Map(lg.franchises.map((f) => [f.id, f.name]));
+  if (!names.has(key.franchiseId)) throw new HttpError(400, 'That team isn’t in this league');
+
+  const existing = await db
+    .prepare('SELECT token_hash, updated_at FROM league_members WHERE league_id = ? AND season = ? AND franchise_id = ?')
+    .bind(key.leagueId, season, key.franchiseId)
+    .first<Pick<MemberRow, 'token_hash' | 'updated_at'>>();
+  if (existing && existing.token_hash !== key.tokenHash && now - existing.updated_at < CLAIM_EXPIRY_DAYS * DAY_MS) {
+    throw new HttpError(409, 'This team is already linked on another device');
+  }
+  await db
+    .prepare(
+      'INSERT INTO league_members (league_id, season, franchise_id, token_hash, values_json, updated_at) ' +
+        'VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (league_id, season, franchise_id) DO UPDATE SET ' +
+        'token_hash = excluded.token_hash, values_json = excluded.values_json, updated_at = excluded.updated_at',
+    )
+    .bind(key.leagueId, season, key.franchiseId, key.tokenHash, JSON.stringify(values), now)
+    .run();
+
+  const { results } = await db
+    .prepare('SELECT franchise_id, values_json, updated_at FROM league_members WHERE league_id = ? AND season = ? AND updated_at > ?')
+    .bind(key.leagueId, season, now - MEMBER_ACTIVE_DAYS * DAY_MS)
+    .all<Omit<MemberRow, 'token_hash'>>();
+  const rosters = new Map(lg.franchises.map((f) => [f.id, f.playerIds]));
+  const member = (franchiseId: string, v: LeagueMember['values']): LeagueMember => ({
+    franchiseId,
+    franchiseName: names.get(franchiseId) ?? `Team ${franchiseId}`,
+    roster: rosters.get(franchiseId) ?? [],
+    values: v,
+  });
+  const others = results
+    .filter((r) => r.franchise_id !== key.franchiseId && names.has(r.franchise_id))
+    .map((r) => member(r.franchise_id, parseSharedValues(JSON.parse(r.values_json)) ?? {}));
+
+  return {
+    teams: lg.teams,
+    members: others.length + 1,
+    matches: findMatches(member(key.franchiseId, values), others),
+  };
+}
+
+/** Removes this team's shared values (only with the token that claimed it). */
+async function leave(db: D1Database, body: Record<string, unknown>) {
+  const key = await memberKey(body);
+  await db
+    .prepare('DELETE FROM league_members WHERE league_id = ? AND season = ? AND franchise_id = ? AND token_hash = ?')
+    .bind(key.leagueId, currentSeason(), key.franchiseId, key.tokenHash)
+    .run();
+  return { ok: true };
+}
+
+async function sha256(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 class HttpError extends Error {
   constructor(
@@ -224,19 +389,29 @@ async function players(ids: string | null) {
   };
 }
 
-async function cached(
-  request: Request,
-  ctx: { waitUntil(p: Promise<unknown>): void },
-  ttlSeconds: number,
-  load: () => Promise<unknown>,
-): Promise<Response> {
-  const cache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
+async function cached(request: Request, ctx: Ctx, ttlSeconds: number, load: () => Promise<unknown>): Promise<Response> {
+  const cache = edgeCache();
   const key = new Request(request.url, { method: 'GET' });
   const hit = await cache?.match(key);
   if (hit) return hit;
   const res = json(await load(), 200, ttlSeconds);
   if (cache) ctx.waitUntil(cache.put(key, res.clone()));
   return res;
+}
+
+/** Like `cached`, for data the Worker uses itself; `cacheUrl` is only a cache key. */
+async function cachedData<T>(cacheUrl: string, ctx: Ctx, ttlSeconds: number, load: () => Promise<T>): Promise<T> {
+  const cache = edgeCache();
+  const key = new Request(cacheUrl, { method: 'GET' });
+  const hit = await cache?.match(key);
+  if (hit) return (await hit.json()) as T;
+  const data = await load();
+  if (cache) ctx.waitUntil(cache.put(key, json(data, 200, ttlSeconds)));
+  return data;
+}
+
+function edgeCache(): Cache | undefined {
+  return (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
 }
 
 function json(body: unknown, status = 200, ttlSeconds = 0): Response {
