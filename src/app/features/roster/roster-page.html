@@ -70,8 +70,8 @@
         <li class="flex items-center justify-between gap-3 px-3 py-2">
           <app-player-line [player]="row.player" />
           <span class="flex items-center gap-3">
-            <span class="text-xs" [class]="row.slot ? 'text-emerald-400' : 'text-zinc-500'">
-              {{ row.slot ? 'Starts · ' + row.slot : 'Bench' }}
+            <span class="text-xs text-zinc-500 tabular-nums" title="Market value (0–100)">
+              {{ row.player.market.baseline.toFixed(0) }}
             </span>
             <button
               type="button"
@@ -128,6 +128,6 @@
     </label>
   </div>
   <p class="mt-2 text-xs text-zinc-500">
-    Lineup: QB, 2 RB, 2 WR, TE, FLEX{{ store.settings().superflex ? ', SUPERFLEX' : '' }}.
+    Format changes which FantasyCalc market values are used. Trade ideas ignore your lineup.
   </p>
 </section>

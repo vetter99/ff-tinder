@@ -1,6 +1,4 @@
-import { baselineFromRank, FantasyCalcRow, normalizeFantasyCalc, replacementLevels } from './normalize';
-import { makePlayers } from './testing';
-import { DEFAULT_SETTINGS } from './types';
+import { baselineFromRank, FantasyCalcRow, normalizeFantasyCalc } from './normalize';
 
 const row = (id: number, name: string, position: string, value: number, sleeperId?: string): FantasyCalcRow => ({
   player: { id, name, position, sleeperId, maybeTeam: 'ATL' },
@@ -33,13 +31,5 @@ describe('baselineFromRank', () => {
     const early = baselineFromRank(1) - baselineFromRank(10);
     const late = baselineFromRank(91) - baselineFromRank(100);
     expect(early).toBeGreaterThan(late * 5);
-  });
-});
-
-describe('replacementLevels', () => {
-  it('gives deeper positions a lower replacement level than shallow ones', () => {
-    const levels = replacementLevels(makePlayers(), DEFAULT_SETTINGS);
-    expect(levels.WR).toBeGreaterThanOrEqual(0);
-    expect(levels.QB).toBeGreaterThan(levels.WR);
   });
 });

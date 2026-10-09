@@ -1,4 +1,4 @@
-import { LeagueSettings, Player, POSITIONS, Position, ReplacementLevels } from './types';
+import { Player, POSITIONS, Position } from './types';
 
 /** The subset of a FantasyCalc `/values/current` row that the app relies on. */
 export interface FantasyCalcRow {
@@ -57,32 +57,4 @@ export function normalizeFantasyCalc(rows: readonly FantasyCalcRow[]): Player[] 
  */
 export function baselineFromRank(rank: number, k = 0.03): number {
   return 100 * Math.exp(-k * (rank - 1));
-}
-
-/** League-wide starters per team at each position, including an estimated share of flex slots. */
-export function startersPerTeam(settings: LeagueSettings): Record<Position, number> {
-  const sf = settings.superflex;
-  return {
-    QB: 1 + (sf ? 0.8 : 0),
-    RB: 2.45 + (sf ? 0.1 : 0),
-    WR: 2.45 + (sf ? 0.1 : 0),
-    TE: 1.1,
-  };
-}
-
-/** Baseline of the best player at each position who would not start on any team in the league. */
-export function replacementLevels(
-  players: readonly Player[],
-  settings: LeagueSettings,
-): ReplacementLevels {
-  const perTeam = startersPerTeam(settings);
-  const levels = {} as ReplacementLevels;
-  for (const pos of POSITIONS) {
-    const atPos = players
-      .filter((p) => p.position === pos)
-      .map((p) => p.market.baseline)
-      .sort((a, b) => b - a);
-    levels[pos] = atPos[Math.round(settings.teams * perTeam[pos])] ?? 0;
-  }
-  return levels;
 }

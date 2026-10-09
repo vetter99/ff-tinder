@@ -21,6 +21,10 @@ export const SELECTION = {
   /** Re-test players whose estimated offset is large: confirms or refutes a surprising answer. */
   confirmBonus: 0.75,
   repeatPairPenalty: 0.05,
+  /** Down-weights matchups between low-value players: score × (baseline/100)^exponent. */
+  importanceExponent: 0.35,
+  /** At least one QB-vs-QB matchup in every this many. */
+  qbEvery: 8,
   /** Sample from the best N pairs so the sequence doesn't feel scripted. */
   topK: 10,
   temperature: 0.15,
@@ -73,11 +77,16 @@ export function scorePairs(
       const b = pool[j];
       const band = Math.max(SELECTION.minBand, SELECTION.bandShare * b.market.baseline);
       if (b.market.baseline - a.market.baseline > band) break; // pool is sorted ascending
+      // QBs are only ever compared with QBs, matching the trade rule.
+      if ((a.position === 'QB') !== (b.position === 'QB')) continue;
 
       const p = preferenceProbability(model, a, b);
       let score = p * (1 - p) * ((variance(a) + variance(b)) / (2 * priorVar));
+      // Matchups between low-value players look maximally uncertain but barely matter for trades.
+      score *= (b.market.baseline / 100) ** SELECTION.importanceExponent;
       score *= surprise(a) * surprise(b);
-      if (a.position !== b.position) score *= 1 + crossBonus;
+      // QB-vs-QB is the only way to learn about QBs, so it gets the same boost as cross-position.
+      if (a.position !== b.position || a.position === 'QB') score *= 1 + crossBonus;
       if (relevant(a) || relevant(b)) score *= 1 + SELECTION.rosterBonus;
       if (recent.has(a.id)) score *= SELECTION.recentPenalty;
       if (recent.has(b.id)) score *= SELECTION.recentPenalty;
@@ -96,7 +105,16 @@ export function selectNextPair(
   history: readonly Comparison[],
   random: () => number = Math.random,
 ): [Player, Player] | null {
-  const top = scorePairs(players, model, rosterIds, history).slice(0, SELECTION.topK);
+  let pairs = scorePairs(players, model, rosterIds, history);
+  // QBs can only be compared with each other and are worth less than top RBs/WRs in 1QB formats,
+  // so without a quota they would never come up.
+  const qbIds = new Set(players.filter((p) => p.position === 'QB').map((p) => p.id));
+  const recent = history.slice(-(SELECTION.qbEvery - 1));
+  if (recent.length === SELECTION.qbEvery - 1 && !recent.some((c) => qbIds.has(c.winner))) {
+    const qbPairs = pairs.filter((p) => p.a.position === 'QB');
+    if (qbPairs.length > 0) pairs = qbPairs;
+  }
+  const top = pairs.slice(0, SELECTION.topK);
   if (top.length === 0) return null;
 
   const best = top[0].score;

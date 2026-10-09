@@ -11,14 +11,18 @@ Phase 1 is single-player: there are no accounts, no league sync and no backend. 
 - **Market value** comes from [FantasyCalc](https://fantasycalc.com) redraft trade values, which
   are fetched directly from the browser. They're normalized to a 0–100 baseline.
 - **Personal value** comes from a Bradley–Terry model that uses the baseline as its prior. Each
-  answer updates a per-player offset and a per-position offset, and each offset carries its own
-  uncertainty. Your answers make up at most 50% of a player's value. Their share grows with the
+  answer updates a per-player offset, and each offset carries its own uncertainty. Turning on the
+  optional *position lean* setting also learns a per-position offset. A second setting,
+  *only players I've compared*, limits suggestions to players you've directly compared. Both settings
+  start off. Your answers make up at most 50% of a player's value. Their share grows with the
   number of *informative* answers, so easy calls count for very little.
 - **Matchups** are picked by active learning. The app favors close calls, players it knows little
-  about, players from different positions, and players near your roster's value. It also re-tests
-  surprising answers.
-- **Trade ideas** are 1-for-1 swaps that improve your starting lineup by your own values. You may
-  overpay by up to 12% of market value, but you may never receive more than 5% extra.
+  about, players from different positions, players near your roster's value and higher-value players.
+  It also re-tests surprising answers. QBs are only matched against QBs.
+- **Trade ideas** are 1-for-1 swaps for a player you value more than consensus does, relative to
+  the player you send. They ignore your roster: lineup needs and positional holes play no part.
+  You may overpay by up to 12% of market value, but you may never receive more than 5% extra. QBs
+  are only ever traded for QBs.
 
 The domain logic lives in [src/domain/](src/domain/). It's plain TypeScript with no Angular, so it can
 later run on a server for multi-manager trade matching.

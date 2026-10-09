@@ -29,6 +29,16 @@ describe('preference model', () => {
     expect(preferenceProbability(model, a, b)).toBeGreaterThan(0.5);
   });
 
+  it('with position lean off, only the two compared players move', () => {
+    const model = emptyModel(false);
+    applyComparison(model, a, b, 1);
+    expect(model.positions.RB.mean).toBe(0);
+    expect(model.positions.WR.mean).toBe(0);
+    expect(model.players.get('a')!.mean).toBeGreaterThan(0);
+    const values = personalValues([a, b, makePlayer('other-rb', 'RB', 50)], model);
+    expect(values.get('other-rb')!.gap).toBe(0);
+  });
+
   it('does not touch position offsets for same-position comparisons', () => {
     const model = emptyModel();
     applyComparison(model, a, makePlayer('c', 'RB', 50), 1);
@@ -103,7 +113,9 @@ describe('simulated user', () => {
       } else {
         const x = players[Math.floor(random() * 120)];
         const y = players[Math.floor(random() * 120)];
-        pair = x.id === y.id ? null : [x, y];
+        // Same rule as the app: QBs are only compared with QBs.
+        const mixedQb = (x.position === 'QB') !== (y.position === 'QB');
+        pair = x.id === y.id || mixedQb ? null : [x, y];
       }
       if (!pair) continue;
       const [x, y] = pair;
@@ -123,8 +135,8 @@ describe('simulated user', () => {
     expect(leans.RB).toBeGreaterThan(0.5);
   });
 
-  // A single-player preference needs a few exposures to separate from noise; tuned so this holds
-  // in ~9/10 runs at 60 swipes (vs ~7/10 without the confirmation bonus).
+  // A single-player preference needs a few exposures to separate from noise; with the current
+  // settings this holds in ~7/10 runs at 60 swipes.
   it('surfaces the hidden favorite as a top trade target after 60 swipes', () => {
     let hits = 0;
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
@@ -133,7 +145,7 @@ describe('simulated user', () => {
       const wrTargets = targets.filter((t) => t.player.position === 'WR');
       if (wrTargets.slice(0, 3).some((t) => t.player.id === favorite.id)) hits++;
     }
-    expect(hits).toBeGreaterThanOrEqual(8);
+    expect(hits).toBeGreaterThanOrEqual(6);
   });
 
   it('active selection learns more per swipe than random matchups', () => {

@@ -17,10 +17,12 @@ export const TARGET_THRESHOLDS = {
 export function valueGaps(
   players: readonly Player[],
   values: ReadonlyMap<PlayerId, PersonalValue>,
+  { requirePlayerEvidence = false } = {},
 ): ValueGap[] {
   return players
     .filter((p) => p.market.baseline >= TARGET_THRESHOLDS.minBaseline && values.has(p.id))
     .map((player) => ({ player, personal: values.get(player.id)! }))
+    .filter((g) => !requirePlayerEvidence || g.personal.comparisons > 0)
     .filter((g) => Math.abs(g.personal.gap) >= TARGET_THRESHOLDS.minGap)
     .sort((a, b) => Math.abs(b.personal.gap) - Math.abs(a.personal.gap));
 }
@@ -33,9 +35,9 @@ export function findValueGaps(
   players: readonly Player[],
   values: ReadonlyMap<PlayerId, PersonalValue>,
   rosterIds: ReadonlySet<PlayerId>,
-  limit = 20,
+  { limit = 20, requirePlayerEvidence = false } = {},
 ): { targets: ValueGap[]; sells: ValueGap[] } {
-  const gaps = valueGaps(players, values);
+  const gaps = valueGaps(players, values, { requirePlayerEvidence });
   return {
     targets: gaps
       .filter((g) => !rosterIds.has(g.player.id) && g.personal.gap > 0)

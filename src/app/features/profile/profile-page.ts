@@ -1,15 +1,20 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { POSITIONS } from '../../../domain/types';
+import { valueChart } from '../../../domain/value-chart';
+import { ModelOptions, Position, POSITIONS } from '../../../domain/types';
 import { RankingsService } from '../../core/rankings.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { relativeTime, signed } from '../../shared/format';
 import { GapList } from '../../shared/gap-list';
+import { HelpTip } from '../../shared/help-tip';
+import { PlayerLine } from '../../shared/player-line';
 import { PositionBadge } from '../../shared/position-badge';
+
+const CHART_PREVIEW_ROWS = 50;
 
 @Component({
   selector: 'app-profile-page',
-  imports: [GapList, PositionBadge],
+  imports: [GapList, HelpTip, PlayerLine, PositionBadge],
   templateUrl: './profile-page.html',
 })
 export class ProfilePage {
@@ -36,10 +41,31 @@ export class ProfilePage {
     }));
   });
 
+  protected readonly chartFilters: (Position | null)[] = [null, ...POSITIONS];
+  protected readonly chartPosition = signal<Position | null>(null);
+  protected readonly chartShowAll = signal(false);
+  private readonly chart = computed(() =>
+    valueChart(this.valuation.players(), this.valuation.values(), this.chartPosition()),
+  );
+  protected readonly chartRows = computed(() =>
+    this.chartShowAll() ? this.chart() : this.chart().slice(0, CHART_PREVIEW_ROWS),
+  );
+  protected readonly chartHidden = computed(() => this.chart().length - this.chartRows().length);
+
   protected readonly dataLabel = computed(() => {
     const at = this.rankings.fetchedAt();
     return at ? relativeTime(at, Date.now()) : '—';
   });
+
+  protected setOption(key: keyof ModelOptions, value: boolean): void {
+    this.store.setOption(key, value);
+  }
+
+  protected rankShift(row: { yourRank: number; marketRank: number }): string {
+    const d = row.marketRank - row.yourRank;
+    if (d === 0) return '—';
+    return d > 0 ? `▲${d}` : `▼${-d}`;
+  }
 
   protected exportData(): void {
     const blob = new Blob([this.store.exportJson()], { type: 'application/json' });

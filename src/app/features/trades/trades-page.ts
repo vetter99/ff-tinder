@@ -12,8 +12,8 @@ import { PlayerLine } from '../../shared/player-line';
   template: `
     <h1 class="text-xl font-semibold">Trade ideas</h1>
     <p class="mt-1 text-sm text-zinc-400">
-      1-for-1 trades that improve your lineup by your own values while staying close to consensus
-      market value.
+      1-for-1 swaps for players you value more than consensus does, relative to what you give up,
+      at prices the other manager could accept. Your lineup needs are ignored.
     </p>
 
     @if (store.roster().length === 0) {
@@ -24,11 +24,11 @@ import { PlayerLine } from '../../shared/player-line';
     } @else {
       @if (remaining() > 0) {
         <p class="mt-4 rounded-md bg-zinc-900 px-3 py-2 text-xs text-zinc-400">
-          These are based mostly on consensus and lineup fit.
+          Ideas come from your answers.
           <a routerLink="/compare" class="text-emerald-400 hover:underline"
             >{{ remaining() }} more comparison{{ remaining() === 1 ? '' : 's' }}</a
           >
-          will start personalizing them.
+          will make them more reliable.
         </p>
       }
 
@@ -47,7 +47,7 @@ import { PlayerLine } from '../../shared/player-line';
             </div>
             <div class="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs">
               <span class="text-zinc-400">
-                Your lineup value
+                Your value
                 <span class="font-semibold text-emerald-300 tabular-nums">{{ signed(t.personalGain) }}</span>
               </span>
               <span class="text-zinc-400">
@@ -63,7 +63,7 @@ import { PlayerLine } from '../../shared/player-line';
           </li>
         } @empty {
           <li class="rounded-lg border border-dashed border-zinc-800 px-4 py-8 text-center text-sm text-zinc-500">
-            No fair trades improve your lineup yet. Keep comparing, or add more of your roster.
+            No fair trades match your preferences yet. Keep comparing, or add more of your roster.
           </li>
         }
       </ul>

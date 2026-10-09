@@ -21,7 +21,48 @@
   than close calls.
 </p>
 
-<section class="mt-8" aria-labelledby="leans-heading">
+<section class="mt-8" aria-labelledby="settings-heading">
+  <h2 id="settings-heading" class="text-sm font-medium text-zinc-300">How suggestions are made</h2>
+  <ul class="mt-3 divide-y divide-zinc-800/70 rounded-lg border border-zinc-800 bg-zinc-900/40">
+    <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-3">
+      <label class="flex flex-1 items-center gap-3 text-sm text-zinc-200">
+        <input
+          type="checkbox"
+          class="size-4 accent-emerald-500"
+          [checked]="store.options().positionLean"
+          (change)="setOption('positionLean', $any($event.target).checked)"
+        />
+        Position lean
+      </label>
+      <app-help-tip label="position lean">
+        When on, the app also learns how you value whole positions. If you keep picking RBs over WRs,
+        every RB gets a small boost and every WR a small penalty, including players you've never seen
+        in a matchup. That learns faster, but it can suggest "any RB for any WR" trades. When off,
+        each answer only changes the two players you compared.
+      </app-help-tip>
+    </li>
+    <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-3">
+      <label class="flex flex-1 items-center gap-3 text-sm text-zinc-200">
+        <input
+          type="checkbox"
+          class="size-4 accent-emerald-500"
+          [checked]="store.options().requirePlayerEvidence"
+          (change)="setOption('requirePlayerEvidence', $any($event.target).checked)"
+        />
+        Only players I've compared
+      </label>
+      <app-help-tip label="only players I've compared">
+        When on, Targets, Trade Ideas and the higher/lower lists only include players who have
+        appeared in at least one of your matchups (for a trade, at least one of the two players). That
+        way every suggestion traces back to an answer you gave about that player. When off, suggestions
+        can also come from your position lean or from small knock-on effects.
+      </app-help-tip>
+    </li>
+  </ul>
+</section>
+
+@if (store.options().positionLean) {
+  <section class="mt-8" aria-labelledby="leans-heading">
   <h2 id="leans-heading" class="text-sm font-medium text-zinc-300">Position leans</h2>
   <ul class="mt-3 space-y-2">
     @for (l of leans(); track l.position) {
@@ -40,6 +81,7 @@
     }
   </ul>
 </section>
+}
 
 <section class="mt-8" aria-labelledby="higher-heading">
   <h2 id="higher-heading" class="text-sm font-medium text-zinc-300">You're higher than consensus on</h2>
@@ -49,6 +91,75 @@
 <section class="mt-8" aria-labelledby="lower-heading">
   <h2 id="lower-heading" class="text-sm font-medium text-zinc-300">You're lower than consensus on</h2>
   <app-gap-list class="mt-2" [gaps]="valuation.lowerThanConsensus()" empty="Nobody yet." />
+</section>
+
+<section class="mt-8" aria-labelledby="chart-heading">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <h2 id="chart-heading" class="text-sm font-medium text-zinc-300">Your trade value chart</h2>
+    <div class="flex gap-1" role="group" aria-label="Filter by position">
+      @for (f of chartFilters; track $index) {
+        <button
+          type="button"
+          class="rounded-md px-2 py-1 text-xs"
+          [class]="chartPosition() === f ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100'"
+          [attr.aria-pressed]="chartPosition() === f"
+          (click)="chartPosition.set(f)"
+        >
+          {{ f ?? 'All' }}
+        </button>
+      }
+    </div>
+  </div>
+  <p class="mt-1 text-xs text-zinc-500">
+    Every player ranked by your value (market blended with your answers, 0–100). ▲/▼ shows how far
+    you've moved a player from their market rank.
+  </p>
+  <div class="mt-3 overflow-hidden rounded-lg border border-zinc-800">
+    <table class="w-full text-sm">
+      <thead class="bg-zinc-900 text-left text-xs text-zinc-500">
+        <tr>
+          <th scope="col" class="w-10 px-3 py-2 font-medium">#</th>
+          <th scope="col" class="px-3 py-2 font-medium">Player</th>
+          <th scope="col" class="px-3 py-2 text-right font-medium">You</th>
+          <th scope="col" class="hidden px-3 py-2 text-right font-medium sm:table-cell">Market</th>
+          <th scope="col" class="px-3 py-2 text-right font-medium">vs mkt</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-800/70">
+        @for (row of chartRows(); track row.player.id) {
+          <tr>
+            <td class="px-3 py-2 text-xs text-zinc-500 tabular-nums">{{ row.yourRank }}</td>
+            <td class="px-3 py-2"><app-player-line [player]="row.player" [size]="28" /></td>
+            <td class="px-3 py-2 text-right font-semibold tabular-nums">{{ row.personal.value.toFixed(1) }}</td>
+            <td class="hidden px-3 py-2 text-right text-zinc-400 tabular-nums sm:table-cell">
+              {{ row.personal.baseline.toFixed(1) }}
+            </td>
+            <td
+              class="px-3 py-2 text-right text-xs tabular-nums"
+              [class]="
+                row.marketRank > row.yourRank
+                  ? 'text-emerald-300'
+                  : row.marketRank < row.yourRank
+                    ? 'text-rose-300'
+                    : 'text-zinc-600'
+              "
+            >
+              {{ rankShift(row) }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (chartHidden() > 0) {
+    <button
+      type="button"
+      class="mt-2 text-xs text-emerald-400 hover:underline"
+      (click)="chartShowAll.set(true)"
+    >
+      Show all ({{ chartHidden() }} more)
+    </button>
+  }
 </section>
 
 <section class="mt-10 border-t border-zinc-800 pt-6" aria-labelledby="data-heading">

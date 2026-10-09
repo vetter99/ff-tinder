@@ -34,6 +34,8 @@ export interface PlayerBelief extends Belief {
 }
 
 export interface PreferenceModel {
+  /** When false, position offsets are neither learned nor applied. */
+  positionLean: boolean;
   players: Map<PlayerId, PlayerBelief>;
   positions: Record<Position, Belief>;
   /** Effective number of informative comparisons: Σ 4·p·(1−p), so obvious answers count ~0. */
@@ -45,10 +47,10 @@ const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 const playerPrior = () => MODEL.playerPriorSd ** 2;
 const positionPrior = () => MODEL.positionPriorSd ** 2;
 
-export function emptyModel(): PreferenceModel {
+export function emptyModel(positionLean = true): PreferenceModel {
   const positions = {} as Record<Position, Belief>;
   for (const pos of POSITIONS) positions[pos] = { mean: 0, variance: positionPrior() };
-  return { players: new Map(), positions, evidence: 0, comparisons: 0 };
+  return { positionLean, players: new Map(), positions, evidence: 0, comparisons: 0 };
 }
 
 function playerBelief(model: PreferenceModel, id: PlayerId): PlayerBelief {
@@ -70,7 +72,7 @@ function differenceVariance(model: PreferenceModel, a: Player, b: Player): numbe
   const va = model.players.get(a.id)?.variance ?? playerPrior();
   const vb = model.players.get(b.id)?.variance ?? playerPrior();
   const positional =
-    a.position === b.position
+    !model.positionLean || a.position === b.position
       ? 0
       : model.positions[a.position].variance + model.positions[b.position].variance;
   return va + vb + positional;
@@ -113,7 +115,7 @@ export function applyComparison(
   step(l, -1, playerPrior());
   w.comparisons++;
   l.comparisons++;
-  if (winner.position !== loser.position) {
+  if (model.positionLean && winner.position !== loser.position) {
     step(model.positions[winner.position], 1, positionPrior());
     step(model.positions[loser.position], -1, positionPrior());
   }
@@ -128,8 +130,9 @@ export function applyComparison(
 export function fitModel(
   comparisons: readonly Comparison[],
   playersById: ReadonlyMap<PlayerId, Player>,
+  { positionLean = true } = {},
 ): PreferenceModel {
-  const model = emptyModel();
+  const model = emptyModel(positionLean);
   for (const c of comparisons) {
     const winner = playersById.get(c.winner);
     const loser = playersById.get(c.loser);

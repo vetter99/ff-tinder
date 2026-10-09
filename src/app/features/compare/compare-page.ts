@@ -38,14 +38,19 @@ export class ComparePage {
   }
 
   protected choose(winner: Player, loser: Player): void {
-    this.store.recordComparison(winner.id, loser.id);
+    this.store.recordComparison(winner.id, loser.id, {
+      baselines: [winner.market.baseline, loser.market.baseline],
+    });
     this.next();
   }
 
   protected skip(): void {
     const pair = this.pair();
     if (!pair) return;
-    this.store.recordComparison(pair[0].id, pair[1].id, true);
+    this.store.recordComparison(pair[0].id, pair[1].id, {
+      tie: true,
+      baselines: [pair[0].market.baseline, pair[1].market.baseline],
+    });
     this.next();
   }
 

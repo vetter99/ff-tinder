@@ -1,7 +1,6 @@
 import { PersonalValue } from './preference';
-import { evaluateRoster, Slot } from './roster-utility';
 import { signed } from './targets';
-import { LeagueSettings, Player, PlayerId, ReplacementLevels } from './types';
+import { Player, PlayerId } from './types';
 
 export const TRADE_RULES = {
   /** The user may overpay by up to this share of the larger side's market value… */
@@ -10,8 +9,8 @@ export const TRADE_RULES = {
   maxWinShare: 0.05,
   /** Absolute slack for low-value players, in baseline points. */
   marketFloor: 1,
-  /** Minimum improvement in the user's personal roster utility. */
-  minGain: 0.75,
+  /** Minimum preference edge: how much more than consensus the user prefers the incoming side. */
+  minEdge: 1,
   maxPerIncoming: 2,
   maxPerOutgoing: 4,
   limit: 25,
@@ -20,7 +19,7 @@ export const TRADE_RULES = {
 export interface TradeIdea {
   send: Player;
   receive: Player;
-  /** Change in the user's roster utility, using their personal values. */
+  /** Personal value received minus sent. */
   personalGain: number;
   /** Market value received minus sent (positive = user gets more by consensus). */
   marketDelta: number;
@@ -33,20 +32,23 @@ export interface TradeContext {
   players: readonly Player[];
   roster: readonly Player[];
   values: ReadonlyMap<PlayerId, PersonalValue>;
-  settings: LeagueSettings;
-  replacement: ReplacementLevels;
+  /** Only suggest trades where the user has compared at least one of the two players. */
+  requirePlayerEvidence?: boolean;
 }
 
 /**
- * 1-for-1 trades that improve the user's personal roster utility while staying within a market
- * window the other manager would plausibly accept: the user may overpay a little by consensus,
- * but never takes much more than they give.
+ * Roster-agnostic 1-for-1 trades: swap a player for one the user values more than consensus does,
+ * relative to what they give up. Lineup needs are deliberately ignored; only player values matter.
+ *
+ * The trade must sit in a market window the other manager would plausibly accept: the user may
+ * overpay a little by consensus, but never takes much more than they give. Ideas are ranked by
+ * preference edge (gap received − gap sent), minus any market value the user overpays.
  */
 export function generateOneForOne(ctx: TradeContext, rules = TRADE_RULES): TradeIdea[] {
-  const { players, roster, values, settings, replacement } = ctx;
-  const personal = (p: Player) => values.get(p.id)?.value ?? p.market.baseline;
+  const { players, roster, values, requirePlayerEvidence = false } = ctx;
+  const gap = (p: Player) => values.get(p.id)?.gap ?? 0;
+  const compared = (p: Player) => (values.get(p.id)?.comparisons ?? 0) > 0;
   const rosterIds = new Set(roster.map((p) => p.id));
-  const before = evaluateRoster(roster, personal, settings, replacement);
   const candidates = players.filter((p) => !rosterIds.has(p.id));
 
   const ideas: TradeIdea[] = [];
@@ -55,6 +57,7 @@ export function generateOneForOne(ctx: TradeContext, rules = TRADE_RULES): Trade
     for (const receive of candidates) {
       // QBs are only ever traded for QBs.
       if ((send.position === 'QB') !== (receive.position === 'QB')) continue;
+      if (requirePlayerEvidence && !compared(send) && !compared(receive)) continue;
       const mr = receive.market.baseline;
       const delta = mr - ms;
       const larger = Math.max(ms, mr);
@@ -62,21 +65,20 @@ export function generateOneForOne(ctx: TradeContext, rules = TRADE_RULES): Trade
       if (delta > Math.max(rules.marketFloor, rules.maxWinShare * larger)) continue;
       if (-delta > Math.max(rules.marketFloor, rules.maxOverpayShare * larger)) continue;
 
-      const next = roster.filter((p) => p.id !== send.id).concat(receive);
-      const after = evaluateRoster(next, personal, settings, replacement);
-      const gain = after.total - before.total;
-      if (gain < rules.minGain) continue;
+      const edge = gap(receive) - gap(send);
+      if (edge < rules.minEdge) continue;
+      const personalGain = delta + edge;
+      if (personalGain <= 0) continue;
 
       ideas.push({
         send,
         receive,
-        personalGain: gain,
+        personalGain,
         marketDelta: delta,
-        marketDeltaShare: delta / Math.max(ms, mr),
-        // Market value the other side gives away for free isn't a reason to rank a trade higher:
-        // ideas should win on the user's preferences and lineup fit.
-        score: gain - Math.max(0, delta),
-        reasons: explainTrade(send, receive, values, before.starters, after.starters, delta),
+        marketDeltaShare: delta / larger,
+        // Market value the other side gives away isn't a reason to rank a trade higher.
+        score: edge + Math.min(0, delta),
+        reasons: explainTrade(send, receive, gap(send), gap(receive), delta),
       });
     }
   }
@@ -100,22 +102,16 @@ export function generateOneForOne(ctx: TradeContext, rules = TRADE_RULES): Trade
 function explainTrade(
   send: Player,
   receive: Player,
-  values: ReadonlyMap<PlayerId, PersonalValue>,
-  startersBefore: { slot: Slot; id: PlayerId }[],
-  startersAfter: { slot: Slot; id: PlayerId }[],
+  gapOut: number,
+  gapIn: number,
   marketDelta: number,
 ): string[] {
   const reasons: string[] = [];
-  const gapIn = values.get(receive.id)?.gap ?? 0;
-  const gapOut = values.get(send.id)?.gap ?? 0;
   if (gapIn >= 0.5) reasons.push(`You value ${receive.name} ${signed(gapIn)} above consensus.`);
   if (gapOut <= -0.5) reasons.push(`You value ${send.name} ${signed(gapOut)} below consensus.`);
-
-  const slotIn = startersAfter.find((s) => s.id === receive.id)?.slot;
-  const slotOut = startersBefore.find((s) => s.id === send.id)?.slot;
-  if (slotIn && !slotOut) reasons.push(`${receive.name} would start at ${slotIn}; ${send.name} wasn't starting.`);
-  else if (slotIn) reasons.push(`${receive.name} would start at ${slotIn}.`);
-
+  if (reasons.length === 0) {
+    reasons.push(`You prefer ${receive.name} to ${send.name} by more than consensus does.`);
+  }
   const pct = Math.round(
     (100 * Math.abs(marketDelta)) / Math.max(send.market.baseline, receive.market.baseline),
   );

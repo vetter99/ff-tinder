@@ -42,9 +42,8 @@ export class RosterPage {
       .slice(0, 8);
   });
 
-  /** Roster grouped by position, best first, with each player's lineup slot. */
+  /** Roster grouped by position, most valuable first. */
   protected readonly groups = computed(() => {
-    const slots = new Map(this.valuation.lineup().starters.map((s) => [s.id, s.slot]));
     const roster = [...this.valuation.roster()].sort(
       (a, b) => b.market.baseline - a.market.baseline,
     );
@@ -52,7 +51,7 @@ export class RosterPage {
       position,
       players: roster
         .filter((p) => p.position === position)
-        .map((player) => ({ player, slot: slots.get(player.id) ?? null })),
+        .map((player) => ({ player })),
     })).filter((g) => g.players.length > 0);
   });
 

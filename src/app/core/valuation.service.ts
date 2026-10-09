@@ -1,6 +1,5 @@
 import { computed, inject, Service } from '@angular/core';
 import { CALIBRATION_COMPARISONS } from '../../domain/active-learning';
-import { replacementLevels } from '../../domain/normalize';
 import {
   fitModel,
   MODEL,
@@ -8,7 +7,6 @@ import {
   personalWeight,
   positionLeans,
 } from '../../domain/preference';
-import { evaluateRoster } from '../../domain/roster-utility';
 import { findValueGaps, valueGaps } from '../../domain/targets';
 import { generateOneForOne } from '../../domain/trades';
 import { Player, PlayerId } from '../../domain/types';
@@ -38,7 +36,11 @@ export class ValuationService {
     this.store.roster().filter((id) => !this.playersById().has(id)),
   );
 
-  readonly model = computed(() => fitModel(this.store.comparisons(), this.playersById()));
+  readonly model = computed(() =>
+    fitModel(this.store.comparisons(), this.playersById(), {
+      positionLean: this.store.options().positionLean,
+    }),
+  );
   readonly values = computed(() => personalValues(this.players(), this.model()));
   readonly weight = computed(() => personalWeight(this.model().evidence));
   /** 0–1 share of the maximum personalization reached. */
@@ -48,26 +50,18 @@ export class ValuationService {
     () => this.store.comparisons().length >= CALIBRATION_COMPARISONS,
   );
 
-  readonly replacement = computed(() =>
-    replacementLevels(this.players(), this.store.settings()),
-  );
-
-  readonly lineup = computed(() => {
-    const values = this.values();
-    return evaluateRoster(
-      this.roster(),
-      (p) => values.get(p.id)?.value ?? p.market.baseline,
-      this.store.settings(),
-      this.replacement(),
-    );
-  });
-
   readonly gaps = computed(() =>
-    findValueGaps(this.players(), this.values(), this.store.rosterIds()),
+    findValueGaps(this.players(), this.values(), this.store.rosterIds(), {
+      requirePlayerEvidence: this.store.options().requirePlayerEvidence,
+    }),
   );
 
   /** Players the user is higher/lower on than consensus, regardless of roster. */
-  private readonly allGaps = computed(() => valueGaps(this.players(), this.values()));
+  private readonly allGaps = computed(() =>
+    valueGaps(this.players(), this.values(), {
+      requirePlayerEvidence: this.store.options().requirePlayerEvidence,
+    }),
+  );
   readonly higherThanConsensus = computed(() =>
     this.allGaps().filter((g) => g.personal.gap > 0).slice(0, 15),
   );
@@ -80,8 +74,7 @@ export class ValuationService {
       players: this.players(),
       roster: this.roster(),
       values: this.values(),
-      settings: this.store.settings(),
-      replacement: this.replacement(),
+      requirePlayerEvidence: this.store.options().requirePlayerEvidence,
     }),
   );
 }

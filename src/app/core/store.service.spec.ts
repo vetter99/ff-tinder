@@ -31,7 +31,7 @@ describe('StoreService', () => {
   it('undo removes only the latest comparison', () => {
     const store = TestBed.inject(StoreService);
     store.recordComparison('a', 'b');
-    store.recordComparison('c', 'd', true);
+    store.recordComparison('c', 'd', { tie: true });
     expect(store.undoLastComparison()?.winner).toBe('c');
     expect(store.comparisons().map((c) => c.winner)).toEqual(['a']);
   });

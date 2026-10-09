@@ -39,6 +39,22 @@ export interface Comparison {
   loser: PlayerId;
   /** "Too close to call": winner/loser are just the two players shown. */
   tie?: boolean;
+  /**
+   * Market baselines of [winner, loser] when the answer was given. Not used by the model yet; kept
+   * so answers can later be interpreted against the market of their week (see README).
+   */
+  baselines?: [number, number];
 }
 
-export type ReplacementLevels = Record<Position, number>;
+/** User-facing switches for how preferences turn into suggestions. */
+export interface ModelOptions {
+  /** Learn and apply "you like RBs more than consensus" offsets across a whole position. */
+  positionLean: boolean;
+  /** Only suggest targets/trades involving players the user has directly compared. */
+  requirePlayerEvidence: boolean;
+}
+
+export const DEFAULT_MODEL_OPTIONS: ModelOptions = {
+  positionLean: false,
+  requirePlayerEvidence: false,
+};
