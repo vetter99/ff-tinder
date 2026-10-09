@@ -4,6 +4,7 @@ import {
   effect,
   ElementRef,
   inject,
+  input,
   signal,
   untracked,
   viewChild,
@@ -11,6 +12,7 @@ import {
 import { RouterLink } from '@angular/router';
 import { CALIBRATION_COMPARISONS, selectNextPair } from '../../../domain/active-learning';
 import { formatSalaryShort } from '../../../domain/league-import';
+import { SCOUT_GOAL, scoutCount } from '../../../domain/scouting';
 import { Player, PlayerId } from '../../../domain/types';
 import { LeagueService } from '../../core/league.service';
 import { StoreService } from '../../core/store.service';
@@ -48,6 +50,7 @@ const CONFETTI_COLORS = ['#34d399', '#fbbf24', '#38bdf8', '#f472b6', '#a78bfa'];
 interface Toast {
   text: string;
   link: string | null;
+  query?: Record<string, string>;
   big?: boolean;
 }
 
@@ -71,6 +74,8 @@ type CardState = 'idle' | 'dragging' | 'armed' | 'chosen' | 'dropped' | 'tie';
   host: { '(window:keydown)': 'onKey($event)', class: 'block' },
 })
 export class ComparePage {
+  /** `?scout=<franchise id>`: only your players against that team's. */
+  readonly scout = input<string>();
   private readonly store = inject(StoreService);
   protected readonly valuation = inject(ValuationService);
   private readonly arena = viewChild<ElementRef<HTMLElement>>('arena');
@@ -89,6 +94,12 @@ export class ComparePage {
   protected readonly winnerStays = computed(() => this.store.options().winnerStays);
   protected readonly playerInfo = inject(PlayerInfoService);
   private readonly league = inject(LeagueService);
+  protected readonly scoutTeam = computed(() => this.league.team(this.scout() ?? null));
+  private readonly scoutIds = computed(() => new Set(this.scoutTeam()?.players.map((p) => p.id) ?? []));
+  protected readonly scouted = computed(() =>
+    scoutCount(this.store.comparisons(), this.store.rosterIds(), this.scoutIds()),
+  );
+  protected readonly scoutGoal = SCOUT_GOAL;
   protected readonly ppr = computed(() => this.store.settings().ppr);
   /** Player whose stats/news sheet is open. */
   protected readonly detailsPlayer = signal<Player | null>(null);
@@ -133,6 +144,17 @@ export class ComparePage {
   constructor() {
     effect(() => {
       if (!this.pair() && this.valuation.players().length > 0) untracked(() => this.next());
+    });
+    // Entering or leaving scout mode (or the league loading) starts a fresh matchup.
+    const scoutId = computed(() => this.scoutTeam()?.id ?? null);
+    effect(() => {
+      scoutId();
+      untracked(() => {
+        if (this.valuation.players().length > 0 && this.leaving() === null) {
+          this.champion.set(null);
+          this.next();
+        }
+      });
     });
     // Fetch injuries, stats and news for whoever is on screen.
     effect(() => {
@@ -232,14 +254,20 @@ export class ComparePage {
 
   private next(): void {
     const champion = this.champion();
-    const pair = selectNextPair(
-      this.valuation.players(),
-      this.valuation.model(),
-      this.store.rosterIds(),
-      this.store.comparisons(),
-      Math.random,
-      { keep: champion?.id },
-    );
+    const scouting = this.scoutTeam() !== null;
+    const rosterIds = this.store.rosterIds();
+    const theirIds = this.scoutIds();
+    const choose = (scout: boolean) =>
+      selectNextPair(
+        this.valuation.players(),
+        this.valuation.model(),
+        scout ? new Set([...rosterIds, ...theirIds]) : rosterIds,
+        this.store.comparisons(),
+        Math.random,
+        { keep: champion?.id, ...(scout ? { between: [rosterIds, theirIds] as const } : {}) },
+      );
+    // Scouting falls back to normal matchups if the two rosters have no comparable players left.
+    const pair = (scouting ? choose(true) : null) ?? choose(false);
     if (champion && pair?.[0].id === champion.id) {
       // The champion holds their slot; the challenger takes the other one.
       this.pair.set(champion.side === 0 ? pair : [pair[1], pair[0]]);
@@ -263,6 +291,12 @@ export class ComparePage {
   private celebrate(targetsBefore: Set<PlayerId>, levelBefore: number): void {
     const n = this.count();
     const level = this.level();
+    const team = this.scoutTeam();
+    if (team && this.scouted() === SCOUT_GOAL) {
+      this.showToast({ text: `Scouting done! See your ${team.name} offers`, link: '/trades', query: { team: team.id }, big: true });
+      this.burst(null, 40);
+      return;
+    }
     if (this.retired) {
       this.showToast({
         text: `🏆 ${this.retired.name} won ${this.retired.wins} in a row`,
@@ -439,6 +473,10 @@ export class ComparePage {
   protected salary(player: Player): string | null {
     const salary = this.league.info(player)?.contract?.salary;
     return salary == null ? null : formatSalaryShort(salary);
+  }
+
+  protected isMine(player: Player): boolean {
+    return this.store.rosterIds().has(player.id);
   }
 
   protected wholeYears(age: number): number {

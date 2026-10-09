@@ -173,6 +173,33 @@ Answers from every device are combined.
 - Up to 5,000 answers are kept per team (the oldest are dropped first, by which time they've faded
   away anyway).
 
+### 10. Trading with one team (packages)
+
+With an MFL team linked, the Trades page lists every other team in your league with a count of
+fair offers. Pick one to open its **trade room** ([packages.ts](src/domain/packages.ts)):
+
+1. **Scout them:** a Compare session where every matchup is one of your players against one of
+   theirs, with "Yours" and team-name tags on the cards. 12 matchups complete a scout; you can keep
+   going.
+2. **Offers** from both real rosters, in four groups: **1 for 1**, **2 for 2**, **Consolidate**
+   (2-for-1, 3-for-2) and **Add depth** (1-for-2, 2-for-3).
+3. **Pitch:** tick offers and get a ready-to-send message ("My X + Y for your Z"), with salaries in
+   salary leagues, to copy or share. They don't need the app. The message can be edited first.
+
+How packages are valued and filtered:
+- **Depth is discounted.** A side is worth (Σ vᵏ)^(1/k) with k = 1.4, so one player counts as
+  themselves and two 30-point players count as about 49, not 60. Market and personal values use the
+  same formula, and a 1-for-1 scores exactly as in the ideas list.
+- **Same fairness and edge rules** as 1-for-1 trades: you may overpay up to 12% and receive at most
+  5% more by market value, and your edge must be at least 1 point.
+- **QBs:** if either side includes a QB, both sides must.
+- **No filler:** every player must be worth at least 25% of the best player in the deal.
+- **No padding:** a bigger deal is dropped if a smaller deal inside it scores as well or better.
+- Each team's 16 most valuable players are combined, which takes a few milliseconds per team.
+  Each group shows its best 4, with no player more than twice in a group.
+- **"I would never"** on a package applies to each side's best player: it's recorded as
+  preferring your best player in it to theirs, and packages headlined by that pair are hidden.
+
 ## Development
 
 Requires Node 22.22.3+ or 24.15+ (the Angular 22 minimums).

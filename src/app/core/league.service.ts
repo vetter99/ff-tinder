@@ -1,7 +1,16 @@
 import { computed, effect, inject, Service, signal } from '@angular/core';
+import { matchMflRoster } from '../../domain/league-import';
 import { Player } from '../../domain/types';
 import { MflContract, MflLeague, MflService } from './mfl.service';
+import { RankingsService } from './rankings.service';
 import { StoreService } from './store.service';
+
+export interface LeagueTeam {
+  id: string;
+  name: string;
+  /** Players on the team's MFL roster that have market values, best first. */
+  players: Player[];
+}
 
 export interface LeaguePlayerInfo {
   leagueName: string;
@@ -15,6 +24,7 @@ export interface LeaguePlayerInfo {
 export class LeagueService {
   private readonly store = inject(StoreService);
   private readonly mfl = inject(MflService);
+  private readonly rankings = inject(RankingsService);
   private readonly league = signal<MflLeague | null>(null);
 
   constructor() {
@@ -24,6 +34,26 @@ export class LeagueService {
       this.league.set(null);
       if (id) void this.load(id);
     });
+  }
+
+  /** The other teams in the linked league with their rosters (empty until it loads). */
+  readonly otherTeams = computed<LeagueTeam[]>(() => {
+    const league = this.league();
+    const link = this.store.league();
+    if (!league || !link || league.id !== link.leagueId) return [];
+    const players = this.rankings.players();
+    return league.franchises
+      .filter((f) => f.id !== link.franchiseId)
+      .map((f) => ({ id: f.id, name: f.name, players: matchMflRoster(f.playerIds, players).matched }));
+  });
+
+  team(id: string | null): LeagueTeam | null {
+    return this.otherTeams().find((t) => t.id === id) ?? null;
+  }
+
+  /** A player's salary in the linked league, if it uses salaries. */
+  salary(player: Player): number | null {
+    return this.info(player)?.contract?.salary ?? null;
   }
 
   private readonly owners = computed(() => {

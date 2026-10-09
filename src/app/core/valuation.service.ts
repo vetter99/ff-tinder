@@ -9,7 +9,15 @@ import {
   positionLeans,
 } from '../../domain/preference';
 import { findValueGaps, valueGaps } from '../../domain/targets';
-import { allOneForOneIdeas, pickDiverse, rankTargets, vetoedTrades, vetoKey } from '../../domain/trades';
+import {
+  allOneForOneIdeas,
+  pickDiverse,
+  rankTargets,
+  TradeIdea,
+  vetoedTrades,
+  vetoKey,
+} from '../../domain/trades';
+import { findPackages, TradePackage } from '../../domain/packages';
 import { Player, PlayerId } from '../../domain/types';
 import { RankingsService } from './rankings.service';
 import { StoreService } from './store.service';
@@ -83,14 +91,26 @@ export class ValuationService {
   /** Trades the user said they would never make ("send>receive" keys). */
   readonly vetoed = computed(() => vetoedTrades(this.store.comparisons()));
   /** Every fair 1-for-1 the user hasn't vetoed, best first. */
-  private readonly allIdeas = computed(() => {
-    const vetoed = this.vetoed();
-    return allOneForOneIdeas(this.tradeContext()).filter(
-      (t) => !vetoed.has(vetoKey(t.send.id, t.receive.id)),
-    );
-  });
+  private readonly allIdeas = computed(() => this.unvetoed(allOneForOneIdeas(this.tradeContext())));
   /** Trade Ideas page: the best ideas, varied so no player dominates the list. */
   readonly trades = computed(() => pickDiverse(this.allIdeas()));
   /** Targets ranked by the best fair offer the user could make for each. */
   readonly rankedTargets = computed(() => rankTargets(this.gaps().targets, this.allIdeas()));
+
+  /** Fair trades with one team (1-for-1 up to 2-for-3), best first and varied. */
+  packagesFor(theirPlayers: readonly Player[]): TradePackage[] {
+    const ctx = this.tradeContext();
+    return findPackages({
+      roster: ctx.roster,
+      theirs: theirPlayers,
+      values: ctx.values,
+      requirePlayerEvidence: ctx.requirePlayerEvidence,
+      vetoed: this.vetoed(),
+    });
+  }
+
+  private unvetoed(ideas: TradeIdea[]): TradeIdea[] {
+    const vetoed = this.vetoed();
+    return ideas.filter((t) => !vetoed.has(vetoKey(t.send.id, t.receive.id)));
+  }
 }

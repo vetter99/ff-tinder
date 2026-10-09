@@ -107,6 +107,8 @@ export function scorePairs(
 /**
  * Picks the next matchup: softmax sample over the top-scoring pairs. Sides are randomized, except
  * that a `keep` player ("winner stays") is always first and every candidate pair includes them.
+ * With `between`, only pairs with one player from each set are considered (both sets' players
+ * should be in `rosterIds` so they make the candidate pool).
  */
 export function selectNextPair(
   players: readonly Player[],
@@ -114,9 +116,16 @@ export function selectNextPair(
   rosterIds: ReadonlySet<PlayerId>,
   history: readonly Comparison[],
   random: () => number = Math.random,
-  { keep }: { keep?: PlayerId } = {},
+  { keep, between }: { keep?: PlayerId; between?: [ReadonlySet<PlayerId>, ReadonlySet<PlayerId>] } = {},
 ): [Player, Player] | null {
   let pairs = scorePairs(players, model, rosterIds, history);
+  // Scouting a team: every matchup is one of yours against one of theirs.
+  if (between) {
+    const [mine, theirs] = between;
+    pairs = pairs.filter(
+      ({ a, b }) => (mine.has(a.id) && theirs.has(b.id)) || (theirs.has(a.id) && mine.has(b.id)),
+    );
+  }
   if (keep) {
     const withKeep = pairs.filter((p) => p.a.id === keep || p.b.id === keep);
     if (withKeep.length > 0) {
