@@ -13,6 +13,16 @@ export interface MflLeague {
   /** Points per reception from the league's scoring rules (null if unavailable). */
   ppr: number | null;
   franchises: { id: string; name: string; playerIds: string[] }[];
+  /** Salary and contract by MFL player id, in leagues that use them. */
+  contracts?: Record<string, MflContract>;
+}
+
+export interface MflContract {
+  salary: number | null;
+  /** Contract years remaining, as the league records them. */
+  years: number | null;
+  /** Free-text contract notes, if the league uses them. */
+  info: string | null;
 }
 
 export interface MflPlayer {

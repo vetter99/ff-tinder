@@ -1,6 +1,8 @@
-import { Component, computed, ElementRef, input, output, viewChild, afterNextRender } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, output, viewChild, afterNextRender } from '@angular/core';
+import { formatSalary } from '../../domain/league-import';
 import { summarizeSeason } from '../../domain/player-stats';
 import { LeagueSettings, Player } from '../../domain/types';
+import { LeagueService } from '../core/league.service';
 import { InfoState } from '../core/player-info.service';
 import { relativeTime } from './format';
 import { PlayerAvatar } from './player-avatar';
@@ -43,6 +45,26 @@ import { PositionBadge } from './position-badge';
           ✕
         </button>
       </div>
+
+      @if (leagueInfo(); as l) {
+        <dl class="mt-4 flex flex-wrap gap-2 text-sm" [attr.aria-label]="'In ' + l.leagueName">
+          @if (l.contract?.salary != null) {
+            <div class="rounded-lg bg-emerald-500/10 px-3 py-1.5">
+              <dt class="text-[11px] text-emerald-300/80">Salary</dt>
+              <dd class="font-semibold text-emerald-200 tabular-nums">{{ salary(l.contract!.salary!) }}</dd>
+            </div>
+          }
+          <div class="min-w-0 rounded-lg bg-zinc-900 px-3 py-1.5">
+            <dt class="text-[11px] text-zinc-500">In {{ l.leagueName }}</dt>
+            <dd class="truncate font-semibold text-zinc-100">
+              {{ l.owner ? (l.owner.mine ? 'Your team' : l.owner.name) : 'Free agent' }}
+            </dd>
+          </div>
+        </dl>
+        @if (l.contract?.info; as note) {
+          <p class="mt-1.5 text-xs text-zinc-500">Contract: {{ note }}</p>
+        }
+      }
 
       @switch (state()?.status) {
         @case ('loading') {
@@ -132,6 +154,11 @@ export class PlayerDetails {
   readonly ppr = input.required<LeagueSettings['ppr']>();
   readonly closed = output<void>();
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('close');
+  private readonly league = inject(LeagueService);
+
+  /** Owner, salary and contract in the linked league. */
+  protected readonly leagueInfo = computed(() => this.league.info(this.player()));
+  protected readonly salary = formatSalary;
 
   protected readonly info = computed(() => {
     const s = this.state();

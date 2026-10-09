@@ -3,7 +3,8 @@
  * whose API doesn't allow browser (CORS) requests from other sites.
  *
  *   GET /api/mfl/search?q=<name or id>   → leagues matching a name, or one league by id
- *   GET /api/mfl/league?id=<league id>   → league name, settings hints and every franchise's roster
+ *   GET /api/mfl/league?id=<league id>   → league name, settings hints, every franchise's roster and
+ *                                          players' salaries/contracts (salary-cap leagues)
  *   GET /api/mfl/players?ids=<a,b,c>     → names/positions for MFL player ids
  *   GET /api/news?espn=<ESPN player id>   → a player's latest news blurbs, trimmed from ESPN's feed
  *
@@ -238,9 +239,16 @@ interface MflFranchise {
   id: string;
   name?: string;
 }
+interface MflRosterPlayer {
+  id: string;
+  status?: string;
+  salary?: string;
+  contractYear?: string;
+  contractInfo?: string;
+}
 interface MflRosterFranchise {
   id: string;
-  player?: { id: string; status?: string } | { id: string; status?: string }[];
+  player?: MflRosterPlayer | MflRosterPlayer[];
 }
 interface MflStarterPosition {
   name: string;
@@ -259,11 +267,20 @@ async function league(id: string | null) {
     franchises?: { franchise?: MflFranchise | MflFranchise[] };
     starters?: { position?: MflStarterPosition | MflStarterPosition[] };
   };
-  const rosters = new Map(
-    list((rostersBody['rosters'] as { franchise?: MflRosterFranchise | MflRosterFranchise[] })?.franchise).map(
-      (f) => [f.id, list(f.player).map((p) => p.id)],
-    ),
+  const rosterFranchises = list(
+    (rostersBody['rosters'] as { franchise?: MflRosterFranchise | MflRosterFranchise[] })?.franchise,
   );
+  const rosters = new Map(rosterFranchises.map((f) => [f.id, list(f.player).map((p) => p.id)]));
+  // Salary-cap and contract leagues list each player's salary and years left on the roster.
+  const contracts: Record<string, { salary: number | null; years: number | null; info: string | null }> = {};
+  for (const f of rosterFranchises) {
+    for (const p of list(f.player)) {
+      const salary = numberOrNull(p.salary);
+      const years = numberOrNull(p.contractYear);
+      const info = p.contractInfo?.trim() || null;
+      if (salary !== null || years !== null || info) contracts[p.id] = { salary, years, info };
+    }
+  }
   const franchises = list(info.franchises?.franchise);
   const qbLimit = list(info.starters?.position).find((p) => p.name === 'QB')?.limit ?? '1';
   return {
@@ -278,7 +295,14 @@ async function league(id: string | null) {
       name: f.name ?? `Team ${f.id}`,
       playerIds: rosters.get(f.id) ?? [],
     })),
+    contracts,
   };
+}
+
+function numberOrNull(v: string | undefined): number | null {
+  if (v === undefined || v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 interface MflRule {

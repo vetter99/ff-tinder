@@ -10,7 +10,9 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CALIBRATION_COMPARISONS, selectNextPair } from '../../../domain/active-learning';
+import { formatSalaryShort } from '../../../domain/league-import';
 import { Player, PlayerId } from '../../../domain/types';
+import { LeagueService } from '../../core/league.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { signed } from '../../shared/format';
@@ -86,6 +88,7 @@ export class ComparePage {
   protected readonly champion = signal<{ id: PlayerId; side: 0 | 1; wins: number } | null>(null);
   protected readonly winnerStays = computed(() => this.store.options().winnerStays);
   protected readonly playerInfo = inject(PlayerInfoService);
+  private readonly league = inject(LeagueService);
   protected readonly ppr = computed(() => this.store.settings().ppr);
   /** Player whose stats/news sheet is open. */
   protected readonly detailsPlayer = signal<Player | null>(null);
@@ -430,6 +433,12 @@ export class ComparePage {
       default:
         return null;
     }
+  }
+
+  /** The player's salary in the linked league, abbreviated ("$11.3M"), if it has salaries. */
+  protected salary(player: Player): string | null {
+    const salary = this.league.info(player)?.contract?.salary;
+    return salary == null ? null : formatSalaryShort(salary);
   }
 
   protected wholeYears(age: number): number {

@@ -200,6 +200,9 @@ pickups.
   Worker ([worker/index.ts](worker/index.ts)). It only forwards three fixed read-only MFL requests:
   league search, league details with rosters, and player names. It caches responses for 5 minutes
   (player names for a day).
+- **Salaries and contracts:** in leagues that use them, comparison cards show each player's salary
+  abbreviated ("$11.3M"), and the info sheet (the "i") shows the full amount and who owns them in
+  your league, read live from MFL's rosters.
 - **Only public leagues work for now.** Private leagues need MFL sign-in, which isn't built yet.
 - A linked team saves its answers to the server so they follow you to any device (see
   [section 9](#9-your-answers-follow-your-team)), and joins league matching (see
