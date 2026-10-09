@@ -1,6 +1,6 @@
 import { PersonalValue } from './preference';
 import { signed, ValueGap } from './targets';
-import { Player, PlayerId } from './types';
+import { Comparison, Player, PlayerId } from './types';
 
 export const TRADE_RULES = {
   /** The user may overpay by up to this share of the larger side's market value… */
@@ -89,6 +89,16 @@ export function allOneForOneIdeas(ctx: TradeContext, rules = TRADE_RULES): Trade
   }
 
   return ideas.sort((a, b) => b.score - a.score);
+}
+
+/** Key for a vetoed trade: the user would never send `send` for `receive`. */
+export function vetoKey(send: PlayerId, receive: PlayerId): string {
+  return `${send}>${receive}`;
+}
+
+/** The trades the user said they would never make, from the comparison log. */
+export function vetoedTrades(comparisons: readonly Comparison[]): Set<string> {
+  return new Set(comparisons.filter((c) => c.veto).map((c) => vetoKey(c.winner, c.loser)));
 }
 
 /** Keeps the list varied: each player appears a limited number of times. */

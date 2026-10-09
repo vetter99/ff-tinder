@@ -1,5 +1,6 @@
 import { computed, effect, inject, Service, signal, untracked } from '@angular/core';
 import { shareableValues, SharedValues, TradeMatch } from '../../domain/matches';
+import { vetoKey } from '../../domain/trades';
 import { Player } from '../../domain/types';
 import { StoreService } from './store.service';
 import { ValuationService } from './valuation.service';
@@ -43,10 +44,12 @@ export class LeagueMatchesService {
     const byMfl = new Map(
       this.valuation.players().flatMap((p) => (p.ids.mfl ? [[p.ids.mfl, p] as const] : [])),
     );
+    const vetoed = this.valuation.vetoed();
     return (this.result()?.matches ?? []).flatMap((m) => {
       const send = byMfl.get(m.send);
       const receive = byMfl.get(m.receive);
-      return send && receive ? [{ ...m, send, receive }] : [];
+      if (!send || !receive || vetoed.has(vetoKey(send.id, receive.id))) return [];
+      return [{ ...m, send, receive }];
     });
   });
 

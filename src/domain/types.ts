@@ -47,9 +47,11 @@ export interface Comparison {
   /** "Too close to call": winner/loser are just the two players shown. */
   tie?: boolean;
   /**
-   * Market baselines of [winner, loser] when the answer was given. Not used by the model yet; kept
-   * so answers can later be interpreted against the market of their week (see README).
+   * "I would never": the user rejected a suggested trade of winner (theirs) for loser. Counts as a
+   * strong answer, and that trade is never suggested again.
    */
+  veto?: boolean;
+  /** Market baselines of [winner, loser] when the answer was given; used to spot stale answers. */
   baselines?: [number, number];
 }
 

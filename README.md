@@ -122,7 +122,12 @@ The app checks every pair of one player you own and one you don't
 4. With *Only players I've compared* on, you've compared at least one of the two players.
 
 Ideas are ranked by that edge, minus anything you'd overpay. Each incoming player appears at most
-twice and each of your players at most four times. Your lineup plays no part: thin positions and
+twice and each of your players at most four times.
+
+**"I would never":** every suggestion (including league matches) has this button. It records an
+answer that you prefer the player you'd send over the one you'd receive. That answer counts as
+**two** ordinary picks, so it fades and goes stale like any other answer. That exact trade is also
+never suggested again, even after the answer fades. An Undo link removes it. Your lineup plays no part: thin positions and
 positional needs are ignored, so ideas come only from how you value players compared with the
 market.
 

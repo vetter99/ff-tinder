@@ -105,17 +105,27 @@ export class StoreService {
   recordComparison(
     winner: PlayerId,
     loser: PlayerId,
-    { tie = false, baselines }: { tie?: boolean; baselines?: [number, number] } = {},
-  ): void {
+    {
+      tie = false,
+      veto = false,
+      baselines,
+    }: { tie?: boolean; veto?: boolean; baselines?: [number, number] } = {},
+  ): Comparison {
     const comparison: Comparison = {
       id: crypto.randomUUID(),
       ts: Date.now(),
       winner,
       loser,
       ...(tie ? { tie: true } : {}),
+      ...(veto ? { veto: true } : {}),
       ...(baselines ? { baselines } : {}),
     };
     this.state.update((s) => ({ ...s, comparisons: [...s.comparisons, comparison] }));
+    return comparison;
+  }
+
+  removeComparison(id: string): void {
+    this.state.update((s) => ({ ...s, comparisons: s.comparisons.filter((c) => c.id !== id) }));
   }
 
   undoLastComparison(): Comparison | undefined {

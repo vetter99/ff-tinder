@@ -1,15 +1,21 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CALIBRATION_COMPARISONS } from '../../../domain/active-learning';
+import { vetoKey } from '../../../domain/trades';
+import { Player } from '../../../domain/types';
 import { LeagueMatchesService } from '../../core/league-matches.service';
 import { StoreService } from '../../core/store.service';
 import { ValuationService } from '../../core/valuation.service';
 import { signed } from '../../shared/format';
 import { PlayerLine } from '../../shared/player-line';
+import { NeverButton } from './never-button';
+
+/** Length of the card's exit animation (.never-out in styles.css). */
+const NEVER_EXIT_MS = 750;
 
 @Component({
   selector: 'app-trades-page',
-  imports: [PlayerLine, RouterLink],
+  imports: [PlayerLine, RouterLink, NeverButton],
   template: `
     <h1 class="text-xl font-semibold">Trade ideas</h1>
     <p class="mt-1 text-sm text-zinc-400">
@@ -25,6 +31,18 @@ import { PlayerLine } from '../../shared/player-line';
         >
         will make them more reliable.
       </p>
+    }
+
+    @if (lastVeto(); as v) {
+      <div
+        class="mt-4 flex items-center justify-between gap-3 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-300"
+        role="status"
+      >
+        <span>Got it: you'd never trade {{ v.send.name }} for {{ v.receive.name }}. Suggestions updated.</span>
+        <button type="button" class="shrink-0 font-medium text-emerald-400 hover:underline" (click)="undoNever()">
+          Undo
+        </button>
+      </div>
     }
 
     @if (store.league(); as link) {
@@ -57,7 +75,17 @@ import { PlayerLine } from '../../shared/player-line';
           @default {
             <ul class="mt-2 space-y-4">
               @for (m of leagueMatches.matches(); track m.franchiseId + m.send.id + m.receive.id) {
-                <li class="overflow-hidden rounded-xl border border-amber-400/60 bg-amber-500/5 shadow-[0_0_24px_-8px] shadow-amber-400/40">
+                <li
+                  class="relative overflow-hidden rounded-xl border border-amber-400/60 bg-amber-500/5 shadow-[0_0_24px_-8px] shadow-amber-400/40"
+                  [class.never-out]="isLeaving(m.send, m.receive)"
+                >
+                  @if (isLeaving(m.send, m.receive)) {
+                    <span
+                      class="stamp-pop pointer-events-none absolute top-10 right-4 z-10 rounded-lg border-2 border-rose-400 bg-zinc-950/70 px-2 py-0.5 text-sm font-black tracking-widest text-rose-300"
+                      aria-hidden="true"
+                      >NOPE ✕</span
+                    >
+                  }
                   <p class="flex items-center gap-2 bg-gradient-to-r from-amber-400 to-yellow-300 px-4 py-1.5 text-sm font-semibold text-zinc-950">
                     <span aria-hidden="true">★</span> It's a match: you both want this
                   </p>
@@ -79,6 +107,14 @@ import { PlayerLine } from '../../shared/player-line';
                       (edge <span class="font-semibold text-amber-200 tabular-nums">{{ signed(m.yourEdge) }}</span>),
                       and {{ m.franchiseName }} feels the same about {{ m.send.name }}. Fair by market.
                     </p>
+                    <div class="mt-3 flex justify-end">
+                      <app-never-button
+                        [send]="m.send"
+                        [receive]="m.receive"
+                        [disabled]="leaving() !== null"
+                        (pressed)="never(m.send, m.receive)"
+                      />
+                    </div>
                   </div>
                 </li>
               } @empty {
@@ -107,7 +143,17 @@ import { PlayerLine } from '../../shared/player-line';
     <h2 class="mt-8 text-sm font-medium text-zinc-300">Ideas from your preferences</h2>
     <ul class="mt-2 space-y-4">
       @for (t of valuation.trades(); track t.send.id + t.receive.id) {
-        <li class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <li
+          class="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/40 p-4"
+          [class.never-out]="isLeaving(t.send, t.receive)"
+        >
+          @if (isLeaving(t.send, t.receive)) {
+            <span
+              class="stamp-pop pointer-events-none absolute top-10 right-4 z-10 rounded-lg border-2 border-rose-400 bg-zinc-950/70 px-2 py-0.5 text-sm font-black tracking-widest text-rose-300"
+              aria-hidden="true"
+              >NOPE ✕</span
+            >
+          }
           <div class="grid grid-cols-2 gap-4">
             <div class="min-w-0">
               <p class="mb-2 text-[11px] font-semibold tracking-wider text-rose-300/80 uppercase">
@@ -124,7 +170,7 @@ import { PlayerLine } from '../../shared/player-line';
               <app-player-line [player]="t.receive" />
             </div>
           </div>
-          <div class="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+          <div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
             <span class="text-zinc-400">
               Your value
               <span class="font-semibold text-emerald-300 tabular-nums">{{
@@ -143,6 +189,14 @@ import { PlayerLine } from '../../shared/player-line';
               <li>{{ r }}</li>
             }
           </ul>
+          <div class="mt-3 flex justify-end">
+            <app-never-button
+              [send]="t.send"
+              [receive]="t.receive"
+              [disabled]="leaving() !== null"
+              (pressed)="never(t.send, t.receive)"
+            />
+          </div>
         </li>
       } @empty {
         <li
@@ -163,9 +217,49 @@ export class TradesPage {
     Math.max(0, CALIBRATION_COMPARISONS - this.store.comparisons().length),
   );
 
+  protected readonly lastVeto = signal<{ id: string; send: Player; receive: Player } | null>(null);
+
   constructor() {
     // Leaguemates may have answered since the last sync.
     this.leagueMatches.refresh();
+  }
+
+  /** The trade whose card is playing its exit animation ("send>receive"). */
+  protected readonly leaving = signal<string | null>(null);
+
+  protected isLeaving(send: Player, receive: Player): boolean {
+    return this.leaving() === vetoKey(send.id, receive.id);
+  }
+
+  /** "I would never": stamp and fling the card away, then record the answer (which hides it). */
+  protected never(send: Player, receive: Player): void {
+    if (this.leaving()) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      this.recordNever(send, receive);
+      return;
+    }
+    navigator.vibrate?.(25);
+    this.leaving.set(vetoKey(send.id, receive.id));
+    setTimeout(() => {
+      this.leaving.set(null);
+      this.recordNever(send, receive);
+    }, NEVER_EXIT_MS);
+  }
+
+  /** Records a strong preference for keeping `send`; the trade is hidden from now on. */
+  private recordNever(send: Player, receive: Player): void {
+    const { id } = this.store.recordComparison(send.id, receive.id, {
+      veto: true,
+      baselines: [send.market.baseline, receive.market.baseline],
+    });
+    this.lastVeto.set({ id, send, receive });
+  }
+
+  protected undoNever(): void {
+    const v = this.lastVeto();
+    if (v) this.store.removeComparison(v.id);
+    this.lastVeto.set(null);
   }
 
   protected marketLabel(share: number): string {

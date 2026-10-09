@@ -9,7 +9,7 @@ import {
   positionLeans,
 } from '../../domain/preference';
 import { findValueGaps, valueGaps } from '../../domain/targets';
-import { allOneForOneIdeas, pickDiverse, rankTargets } from '../../domain/trades';
+import { allOneForOneIdeas, pickDiverse, rankTargets, vetoedTrades, vetoKey } from '../../domain/trades';
 import { Player, PlayerId } from '../../domain/types';
 import { RankingsService } from './rankings.service';
 import { StoreService } from './store.service';
@@ -80,8 +80,15 @@ export class ValuationService {
     values: this.values(),
     requirePlayerEvidence: this.store.options().requirePlayerEvidence,
   }));
-  /** Every fair 1-for-1, best first. */
-  private readonly allIdeas = computed(() => allOneForOneIdeas(this.tradeContext()));
+  /** Trades the user said they would never make ("send>receive" keys). */
+  readonly vetoed = computed(() => vetoedTrades(this.store.comparisons()));
+  /** Every fair 1-for-1 the user hasn't vetoed, best first. */
+  private readonly allIdeas = computed(() => {
+    const vetoed = this.vetoed();
+    return allOneForOneIdeas(this.tradeContext()).filter(
+      (t) => !vetoed.has(vetoKey(t.send.id, t.receive.id)),
+    );
+  });
   /** Trade Ideas page: the best ideas, varied so no player dominates the list. */
   readonly trades = computed(() => pickDiverse(this.allIdeas()));
   /** Targets ranked by the best fair offer the user could make for each. */

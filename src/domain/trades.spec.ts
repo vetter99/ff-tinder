@@ -2,7 +2,7 @@ import { scorePairs, selectNextPair } from './active-learning';
 import { emptyModel, fitModel, personalValues, PersonalValue } from './preference';
 import { findValueGaps } from './targets';
 import { makePlayer, makePlayers, seededRandom } from './testing';
-import { allOneForOneIdeas, generateOneForOne, rankTargets, TRADE_RULES } from './trades';
+import { allOneForOneIdeas, generateOneForOne, rankTargets, TRADE_RULES, vetoedTrades, vetoKey } from './trades';
 import { Comparison, Player, PlayerId } from './types';
 
 function valuesWith(players: Player[], gaps: Record<PlayerId, number>): Map<PlayerId, PersonalValue> {
@@ -204,5 +204,28 @@ describe('rankTargets', () => {
     expect(ranked[0].bestOffer?.send.id).toBe('mine-rb');
     expect(ranked[1].bestOffer?.send.id).toBe('mine-wr');
     expect(ranked[2].bestOffer).toBeNull();
+  });
+});
+
+describe('"I would never" vetoes', () => {
+  const mine = makePlayer('mine', 'WR', 60);
+  const theirs = makePlayer('theirs', 'WR', 61);
+  const byId = new Map([mine, theirs].map((p) => [p.id, p]));
+  const veto = (veto: boolean): Comparison => ({
+    id: 'v',
+    ts: Date.now(),
+    winner: 'mine',
+    loser: 'theirs',
+    ...(veto ? { veto: true } : {}),
+  });
+
+  it('lists vetoed trades as send>receive', () => {
+    const plain = { ...veto(false), id: 'c' };
+    expect([...vetoedTrades([veto(true), plain])]).toEqual([vetoKey('mine', 'theirs')]);
+  });
+
+  it('counts as a stronger answer than an ordinary pick', () => {
+    const offset = (c: Comparison) => fitModel([c], byId, { positionLean: false }).players.get('mine')!.mean;
+    expect(offset(veto(true))).toBeGreaterThan(offset(veto(false)) * 1.3);
   });
 });

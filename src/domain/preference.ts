@@ -22,6 +22,8 @@ export const MODEL = {
   minPersonalWeight: 0.1,
   /** Informative comparisons at which the personal weight reaches half of its cap. */
   halfWeightEvidence: 10,
+  /** An "I would never" on a suggested trade counts as this many ordinary answers. */
+  vetoWeight: 2,
 };
 
 /**
@@ -189,7 +191,8 @@ export function fitModel(
     const winner = playersById.get(c.winner);
     const loser = playersById.get(c.loser);
     if (!winner || !loser) continue;
-    applyComparison(model, winner, loser, c.tie ? 0.5 : 1, comparisonWeight(c, winner, loser, now));
+    const weight = comparisonWeight(c, winner, loser, now) * (c.veto ? MODEL.vetoWeight : 1);
+    applyComparison(model, winner, loser, c.tie ? 0.5 : 1, weight);
   }
   return model;
 }
